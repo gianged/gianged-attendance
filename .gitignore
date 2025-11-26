@@ -1,0 +1,45 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment and secrets
+.env
+.env.local
+config.toml
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.orig
+
+# Logs
+*.log
+logs/
+
+# Excel exports (generated output)
+exports/
+*.xlsx
+
+# Reference data (legacy database exports)
+docs/reference-data/
+migrations/*.sql
+
+# Windows debug symbols
+*.pdb
+
+# Distribution builds
+/dist/
+
+# Installer output
+/installer/Output/
