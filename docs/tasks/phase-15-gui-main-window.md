@@ -58,7 +58,7 @@ fn main() -> eframe::Result<()> {
     // Window options
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("GiangEd Attendance")
+            .with_title("Gianged Attendance")
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([900.0, 600.0]),
         ..Default::default()
@@ -66,7 +66,7 @@ fn main() -> eframe::Result<()> {
 
     // Run application
     eframe::run_native(
-        "GiangEd Attendance",
+        "Gianged Attendance",
         options,
         Box::new(|cc| {
             // Set default fonts/style if needed
@@ -291,7 +291,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         ui.add_space(10.0);
 
         // App title
-        ui.heading("GiangEd");
+        ui.heading("Gianged");
         ui.label("Attendance");
 
         ui.add_space(20.0);

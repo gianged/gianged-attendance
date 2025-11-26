@@ -105,9 +105,7 @@ impl AppConfig {
     /// Validate configuration values.
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.database.host.trim().is_empty() {
-            return Err(ConfigError::Validation(
-                "Database host cannot be empty".to_string(),
-            ));
+            return Err(ConfigError::Validation("Database host cannot be empty".to_string()));
         }
         if self.database.port == 0 {
             return Err(ConfigError::Validation(
@@ -115,9 +113,7 @@ impl AppConfig {
             ));
         }
         if self.database.name.trim().is_empty() {
-            return Err(ConfigError::Validation(
-                "Database name cannot be empty".to_string(),
-            ));
+            return Err(ConfigError::Validation("Database name cannot be empty".to_string()));
         }
         if !self.device.url.is_empty() && !self.device.url.starts_with("http") {
             return Err(ConfigError::Validation(
@@ -125,19 +121,13 @@ impl AppConfig {
             ));
         }
         if self.sync.days < 1 {
-            return Err(ConfigError::Validation(
-                "Sync days must be at least 1".to_string(),
-            ));
+            return Err(ConfigError::Validation("Sync days must be at least 1".to_string()));
         }
         if self.sync.days > 365 {
-            return Err(ConfigError::Validation(
-                "Sync days cannot exceed 365".to_string(),
-            ));
+            return Err(ConfigError::Validation("Sync days cannot exceed 365".to_string()));
         }
         if self.sync.max_user_id < 1 {
-            return Err(ConfigError::Validation(
-                "Max user ID must be at least 1".to_string(),
-            ));
+            return Err(ConfigError::Validation("Max user ID must be at least 1".to_string()));
         }
         if self.sync.interval_minutes < 1 {
             return Err(ConfigError::Validation(
@@ -226,10 +216,7 @@ mod tests {
             username: "user".to_string(),
             password: "pass".to_string(),
         };
-        assert_eq!(
-            db.connection_string(),
-            "postgres://user:pass@localhost:5432/testdb"
-        );
+        assert_eq!(db.connection_string(), "postgres://user:pass@localhost:5432/testdb");
     }
 
     #[test]

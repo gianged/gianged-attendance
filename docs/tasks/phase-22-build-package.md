@@ -18,7 +18,7 @@ fn main() {
     {
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/icon.ico");
-        res.set("ProductName", "GiangEd Attendance");
+        res.set("ProductName", "Gianged Attendance");
         res.set("FileDescription", "Mini ERP for attendance management");
         res.set("LegalCopyright", "Copyright 2025");
         res.compile().expect("Failed to compile Windows resources");
@@ -34,7 +34,7 @@ name = "gianged-attendance"
 version = "0.1.0"
 edition = "2021"
 description = "Mini ERP desktop app for staff and attendance management"
-authors = ["GiangEd"]
+authors = ["Gianged"]
 license = "MIT"
 
 [build-dependencies]

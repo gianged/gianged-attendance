@@ -1,13 +1,23 @@
-//! GiangEd Attendance - Desktop mini ERP for staff and attendance management.
+//! Gianged Attendance - Desktop mini ERP for staff and attendance management.
 
-mod config;
-mod db;
-mod error;
-mod ui;
+use std::path::PathBuf;
 
-use config::{AppConfig, ConfigLoadResult};
+use clap::Parser;
 use eframe::egui;
-use ui::{SetupApp, SetupWizard};
+use gianged_attendance as app;
+
+use app::config::{AppConfig, ConfigLoadResult};
+use app::db;
+use app::ui::{SetupApp, SetupWizard};
+
+/// Desktop mini ERP for staff and attendance management.
+#[derive(Parser)]
+#[command(name = "gianged-attendance")]
+struct Cli {
+    /// Use config.toml from current directory (dev mode)
+    #[arg(long)]
+    dev: bool,
+}
 
 /// Application launch mode.
 enum LaunchMode {
@@ -18,18 +28,22 @@ enum LaunchMode {
 }
 
 fn main() -> eframe::Result<()> {
+    let cli = Cli::parse();
+
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into()),
-        )
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
-    tracing::info!("GiangEd Attendance starting...");
+    tracing::info!("Gianged Attendance starting...");
 
-    // Determine launch mode based on config
-    let config_path = AppConfig::default_path();
+    // Determine config path based on mode
+    let config_path = if cli.dev {
+        tracing::info!("Dev mode: loading config from current directory");
+        PathBuf::from("config.toml")
+    } else {
+        AppConfig::default_path()
+    };
     tracing::info!("Config path: {:?}", config_path);
 
     let launch_mode = match AppConfig::try_load(&config_path) {
@@ -57,7 +71,7 @@ fn main() -> eframe::Result<()> {
 fn run_setup_wizard(wizard: SetupWizard, initial_error: Option<String>) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("GiangEd Attendance - Setup")
+            .with_title("Gianged Attendance - Setup")
             .with_inner_size([600.0, 500.0])
             .with_min_inner_size([500.0, 400.0])
             .with_resizable(true),
@@ -65,7 +79,7 @@ fn run_setup_wizard(wizard: SetupWizard, initial_error: Option<String>) -> efram
     };
 
     eframe::run_native(
-        "GiangEd Attendance - Setup",
+        "Gianged Attendance - Setup",
         options,
         Box::new(|_cc| Ok(Box::new(SetupApp::new(wizard, initial_error)))),
     )
@@ -75,7 +89,7 @@ fn run_setup_wizard(wizard: SetupWizard, initial_error: Option<String>) -> efram
 fn run_main_app(config: AppConfig) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("GiangEd Attendance")
+            .with_title("Gianged Attendance")
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([900.0, 600.0]),
         ..Default::default()
@@ -86,13 +100,29 @@ fn run_main_app(config: AppConfig) -> eframe::Result<()> {
 
     // Connect to database
     let pool = rt.block_on(async {
-        db::create_pool(&config.database.connection_string())
+        let conn = db::connect(&config.database.connection_string())
             .await
-            .expect("Failed to connect to database")
+            .expect("Failed to connect to database");
+
+        // Log connection info
+        if let Ok(version) = db::get_version(&conn).await {
+            tracing::info!("PostgreSQL: {}", version);
+        }
+
+        if let Ok(counts) = db::get_table_counts(&conn).await {
+            tracing::info!(
+                "Tables: {} departments, {} employees, {} attendance logs",
+                counts.departments,
+                counts.employees,
+                counts.attendance_logs
+            );
+        }
+
+        conn
     });
 
     eframe::run_native(
-        "GiangEd Attendance",
+        "Gianged Attendance",
         options,
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -112,11 +142,7 @@ struct MainApp {
 }
 
 impl MainApp {
-    fn new(
-        pool: sea_orm::DatabaseConnection,
-        config: AppConfig,
-        rt: tokio::runtime::Runtime,
-    ) -> Self {
+    fn new(pool: sea_orm::DatabaseConnection, config: AppConfig, rt: tokio::runtime::Runtime) -> Self {
         Self { pool, config, rt }
     }
 }
@@ -126,7 +152,7 @@ impl eframe::App for MainApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(20.0);
-                ui.heading("GiangEd Attendance");
+                ui.heading("Gianged Attendance");
                 ui.add_space(20.0);
                 ui.label("Main application - placeholder");
                 ui.add_space(10.0);

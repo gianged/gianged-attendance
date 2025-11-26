@@ -104,7 +104,7 @@ SELECT * FROM app.employees LIMIT 5;
 
 ## Deliverables
 
-- [ ] Departments migrated (12 records)
-- [ ] Employees migrated (~168 records, minus guests)
-- [ ] Sequences reset correctly
-- [ ] Data integrity verified
+- [x] Departments migrated (12 records)
+- [x] Employees migrated (~168 records, minus guests)
+- [x] Sequences reset correctly
+- [x] Data integrity verified

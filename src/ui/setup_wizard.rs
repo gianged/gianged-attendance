@@ -206,7 +206,7 @@ impl eframe::App for SetupApp {
 
                 // Header
                 ui.horizontal(|ui| {
-                    ui.heading(RichText::new("GiangEd Attendance Setup").size(24.0).strong());
+                    ui.heading(RichText::new("Gianged Attendance Setup").size(24.0).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(format!(
                             "Step {} of {}",
@@ -298,7 +298,7 @@ impl eframe::App for SetupApp {
 }
 
 fn show_welcome_step(ui: &mut egui::Ui) {
-    ui.label("Welcome to GiangEd Attendance!");
+    ui.label("Welcome to Gianged Attendance!");
     ui.add_space(10.0);
     ui.label("This wizard will help you configure the application.");
     ui.add_space(20.0);

@@ -154,8 +154,8 @@ minimize_to_tray = true
 
 ## Deliverables
 
-- [ ] Config structs with serde
-- [ ] Load from TOML file
-- [ ] Save to TOML file
-- [ ] Default values
-- [ ] config.example.toml template
+- [x] Config structs with serde
+- [x] Load from TOML file
+- [x] Save to TOML file
+- [x] Default values
+- [x] config.example.toml template

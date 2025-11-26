@@ -51,6 +51,9 @@ rust_xlsxwriter = "0.92.2"
 # Config
 directories = "6.0.0"
 
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
 [build-dependencies]
 winres = "0.1.12"
 

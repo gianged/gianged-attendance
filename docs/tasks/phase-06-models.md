@@ -19,6 +19,7 @@ sea-orm-cli generate entity \
 ```
 
 This creates `src/entities/` with:
+
 - `mod.rs`
 - `departments.rs`
 - `employees.rs`
@@ -183,8 +184,8 @@ pub use attendance::{CreateAttendanceLog, DailyAttendance, verify_type};
 
 ## Deliverables
 
-- [ ] Generate entities with sea-orm-cli
-- [ ] Department DTOs (Create, Update)
-- [ ] Employee DTOs (Create, Update)
-- [ ] Attendance DTOs and DailyAttendance view model
-- [ ] Module exports
+- [x] Generate entities with sea-orm-cli
+- [x] Department DTOs (Create, Update)
+- [x] Employee DTOs (Create, Update)
+- [x] Attendance DTOs and DailyAttendance view model
+- [x] Module exports

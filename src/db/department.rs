@@ -1,23 +1,10 @@
-# Phase 08: Department Repository
+//! Department repository with CRUD operations.
 
-## Objective
-
-Implement CRUD operations for departments using SeaORM.
-
----
-
-## Tasks
-
-### 8.1 Create Repository
-
-**`src/db/department.rs`**
-
-```rust
 use crate::entities::{departments, prelude::*};
 use crate::models::department::{CreateDepartment, UpdateDepartment};
 use sea_orm::*;
 
-/// List all departments ordered by display_order and name
+/// List all departments ordered by display_order and name.
 pub async fn list_all(db: &DatabaseConnection) -> Result<Vec<departments::Model>, DbErr> {
     Departments::find()
         .order_by_asc(departments::Column::DisplayOrder)
@@ -26,7 +13,7 @@ pub async fn list_all(db: &DatabaseConnection) -> Result<Vec<departments::Model>
         .await
 }
 
-/// List only active departments
+/// List only active departments.
 pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<departments::Model>, DbErr> {
     Departments::find()
         .filter(departments::Column::IsActive.eq(true))
@@ -36,19 +23,13 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<departments::Mod
         .await
 }
 
-/// Get department by ID
-pub async fn get_by_id(
-    db: &DatabaseConnection,
-    id: i32,
-) -> Result<Option<departments::Model>, DbErr> {
+/// Get department by ID.
+pub async fn get_by_id(db: &DatabaseConnection, id: i32) -> Result<Option<departments::Model>, DbErr> {
     Departments::find_by_id(id).one(db).await
 }
 
-/// Create a new department
-pub async fn create(
-    db: &DatabaseConnection,
-    data: CreateDepartment,
-) -> Result<departments::Model, DbErr> {
+/// Create a new department.
+pub async fn create(db: &DatabaseConnection, data: CreateDepartment) -> Result<departments::Model, DbErr> {
     let model = departments::ActiveModel {
         name: Set(data.name),
         parent_id: Set(data.parent_id),
@@ -58,7 +39,7 @@ pub async fn create(
     model.insert(db).await
 }
 
-/// Update an existing department
+/// Update an existing department.
 pub async fn update(
     db: &DatabaseConnection,
     id: i32,
@@ -90,18 +71,14 @@ pub async fn update(
     }
 }
 
-/// Delete a department by ID
+/// Delete a department by ID.
 pub async fn delete(db: &DatabaseConnection, id: i32) -> Result<bool, DbErr> {
     let result = Departments::delete_by_id(id).exec(db).await?;
     Ok(result.rows_affected > 0)
 }
 
-/// Check if department name exists (for validation)
-pub async fn name_exists(
-    db: &DatabaseConnection,
-    name: &str,
-    exclude_id: Option<i32>,
-) -> Result<bool, DbErr> {
+/// Check if department name exists (for validation).
+pub async fn name_exists(db: &DatabaseConnection, name: &str, exclude_id: Option<i32>) -> Result<bool, DbErr> {
     let mut query = Departments::find().filter(departments::Column::Name.eq(name));
 
     if let Some(id) = exclude_id {
@@ -112,11 +89,8 @@ pub async fn name_exists(
     Ok(count > 0)
 }
 
-/// Get child departments
-pub async fn get_children(
-    db: &DatabaseConnection,
-    parent_id: i32,
-) -> Result<Vec<departments::Model>, DbErr> {
+/// Get child departments.
+pub async fn get_children(db: &DatabaseConnection, parent_id: i32) -> Result<Vec<departments::Model>, DbErr> {
     Departments::find()
         .filter(departments::Column::ParentId.eq(parent_id))
         .order_by_asc(departments::Column::DisplayOrder)
@@ -124,28 +98,3 @@ pub async fn get_children(
         .all(db)
         .await
 }
-```
-
-### 8.2 Update Module Export
-
-**`src/db/mod.rs`**
-
-```rust
-pub mod connection;
-pub mod department;
-
-pub use connection::{connect, test_connection, get_version, get_table_counts, TableCounts};
-```
-
----
-
-## Deliverables
-
-- [x] list_all function
-- [x] list_active function
-- [x] get_by_id function
-- [x] create function
-- [x] update function
-- [x] delete function
-- [x] name_exists validation
-- [x] get_children function

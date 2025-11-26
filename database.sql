@@ -1,5 +1,5 @@
 -- =============================================================================
--- GiangEd Attendance - PostgreSQL Database Schema
+-- Gianged Attendance - PostgreSQL Database Schema
 -- =============================================================================
 -- Version: 1.1.0
 -- Description: Mini ERP for staff, department, and attendance management

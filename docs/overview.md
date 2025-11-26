@@ -1,4 +1,4 @@
-# GiangEd Attendance - Solution Overview
+# Gianged Attendance - Solution Overview
 
 ## Project Goal
 

@@ -96,7 +96,7 @@ pub use error::{AppError, Result};
 
 ## Deliverables
 
-- [ ] Error types defined
-- [ ] From implementations for common errors
-- [ ] Result type alias
-- [ ] Helper constructors
+- [x] Error types defined
+- [x] From implementations for common errors
+- [x] Result type alias
+- [x] Helper constructors

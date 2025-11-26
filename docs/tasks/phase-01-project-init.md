@@ -22,7 +22,7 @@ name = "gianged-attendance"
 version = "0.1.0"
 edition = "2021"
 description = "Mini ERP desktop app for staff and attendance management"
-authors = ["GiangEd"]
+authors = ["Gianged"]
 
 [dependencies]
 # Async runtime (rustls, no OpenSSL)
@@ -97,7 +97,7 @@ gianged-attendance/
 
 ```rust
 fn main() {
-    println!("GiangEd Attendance - Starting...");
+    println!("Gianged Attendance - Starting...");
 }
 ```
 

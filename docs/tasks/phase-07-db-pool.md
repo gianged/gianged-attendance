@@ -137,8 +137,8 @@ async fn main() {
 
 ## Deliverables
 
-- [ ] Database connection with ConnectOptions
-- [ ] Connection test function
-- [ ] Version query
-- [ ] Table counts using entity queries
-- [ ] Successful connection test
+- [x] Database connection with ConnectOptions
+- [x] Connection test function
+- [x] Version query
+- [x] Table counts using entity queries
+- [x] Successful connection test

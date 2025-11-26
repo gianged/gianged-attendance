@@ -1,7 +1,7 @@
-; GiangEd Attendance - Inno Setup Script
+; Gianged Attendance - Inno Setup Script
 ; Creates Windows installer with database configuration
 
-#define AppName "GiangEd Attendance"
+#define AppName "Gianged Attendance"
 #define AppVersion "0.1.0"
 #define AppPublisher "Gianged"
 #define AppExeName "gianged-attendance.exe"
@@ -14,7 +14,7 @@ AppPublisher={#AppPublisher}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir=..\target\installer
-OutputBaseFilename=GiangEd-Attendance-Setup-{#AppVersion}
+OutputBaseFilename=Gianged-Attendance-Setup-{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
