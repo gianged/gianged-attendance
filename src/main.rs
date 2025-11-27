@@ -8,7 +8,7 @@ use gianged_attendance as app;
 
 use app::config::{AppConfig, ConfigLoadResult};
 use app::db;
-use app::ui::{SetupApp, SetupWizard};
+use app::ui::{MainApp, SetupApp, SetupWizard};
 
 /// Desktop mini ERP for staff and attendance management.
 #[derive(Parser)]
@@ -125,47 +125,13 @@ fn run_main_app(config: AppConfig) -> eframe::Result<()> {
         "Gianged Attendance",
         options,
         Box::new(|cc| {
+            // Add Phosphor icons to fonts
+            let mut fonts = egui::FontDefinitions::default();
+            egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+            cc.egui_ctx.set_fonts(fonts);
+
             egui_extras::install_image_loaders(&cc.egui_ctx);
             Ok(Box::new(MainApp::new(pool, config, rt)))
         }),
     )
-}
-
-/// Main application state.
-struct MainApp {
-    #[allow(dead_code)]
-    pool: sea_orm::DatabaseConnection,
-    #[allow(dead_code)]
-    config: AppConfig,
-    #[allow(dead_code)]
-    rt: tokio::runtime::Runtime,
-}
-
-impl MainApp {
-    fn new(pool: sea_orm::DatabaseConnection, config: AppConfig, rt: tokio::runtime::Runtime) -> Self {
-        Self { pool, config, rt }
-    }
-}
-
-impl eframe::App for MainApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(20.0);
-                ui.heading("Gianged Attendance");
-                ui.add_space(20.0);
-                ui.label("Main application - placeholder");
-                ui.add_space(10.0);
-                ui.label(format!("Database: {}", self.config.database.name));
-                ui.label(format!(
-                    "Device: {}",
-                    if self.config.device.url.is_empty() {
-                        "Not configured"
-                    } else {
-                        &self.config.device.url
-                    }
-                ));
-            });
-        });
-    }
 }

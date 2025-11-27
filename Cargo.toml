@@ -44,6 +44,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 # GUI
 eframe = "0.33.2"
 egui_extras = { version = "0.33.2", features = ["datepicker"] }
+egui-phosphor = { version = "0.11", features = ["regular"] }
 
 # Excel export
 rust_xlsxwriter = "0.92.2"
