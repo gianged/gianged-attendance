@@ -8,13 +8,13 @@ use tokio::sync::mpsc;
 use crate::config::AppConfig;
 use crate::db;
 use crate::entities::{departments, employees};
-use crate::models::attendance::DailyAttendance;
+use crate::models::attendance::{AttendanceDetail, DailyAttendance};
 use crate::models::department::{CreateDepartment, UpdateDepartment};
 use crate::models::employee::{CreateEmployee, UpdateEmployee};
 use crate::sync::{SyncResult, run_sync_background};
 
 use super::components::colors;
-use super::{dashboard, department_panel, staff_panel, sync_panel};
+use super::{dashboard, department_panel, reports_panel, settings_panel, staff_panel, sync_panel};
 
 /// Current panel being displayed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -81,6 +81,10 @@ pub enum UiMessage {
     DepartmentsLoaded(Vec<departments::Model>),
     EmployeesLoaded(Vec<employees::Model>),
     AttendanceLoaded(Vec<DailyAttendance>),
+    AttendanceDetailsLoaded(Vec<AttendanceDetail>),
+    // Pagination counts
+    AttendanceCountLoaded(u64),
+    AttendanceDetailsCountLoaded(u64),
     LoadError(String),
 
     // Sync
@@ -178,24 +182,59 @@ impl EmployeeForm {
     }
 }
 
+/// Report type: Summary (daily totals) or Detail (every check).
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReportType {
+    #[default]
+    Summary,
+    Detail,
+}
+
+/// Page size for paginated report queries.
+pub const REPORT_PAGE_SIZE: u64 = 500;
+
 /// Filter state for reports.
 #[derive(Clone)]
 pub struct ReportFilter {
+    pub report_type: ReportType,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
     pub department_id: Option<i32>,
     pub employee_id: Option<i32>,
+    // Pagination state
+    pub current_page: u64,
+    pub total_records: u64,
 }
 
 impl Default for ReportFilter {
     fn default() -> Self {
         let today = Local::now().date_naive();
         Self {
+            report_type: ReportType::default(),
             start_date: today - chrono::Duration::days(30),
             end_date: today,
             department_id: None,
             employee_id: None,
+            current_page: 0,
+            total_records: 0,
         }
+    }
+}
+
+impl ReportFilter {
+    /// Calculate total pages based on current total records.
+    pub fn total_pages(&self) -> u64 {
+        if self.total_records == 0 {
+            1
+        } else {
+            self.total_records.div_ceil(REPORT_PAGE_SIZE)
+        }
+    }
+
+    /// Reset pagination when filters change.
+    pub fn reset_pagination(&mut self) {
+        self.current_page = 0;
+        self.total_records = 0;
     }
 }
 
@@ -240,6 +279,7 @@ pub struct App {
     pub departments: Vec<departments::Model>,
     pub employees: Vec<employees::Model>,
     pub attendance: Vec<DailyAttendance>,
+    pub attendance_details: Vec<AttendanceDetail>,
 
     // Loading states
     pub is_loading: bool,
@@ -286,6 +326,10 @@ pub struct App {
     // Device state
     pub device_status: DeviceStatus,
     device_status_rx: Option<mpsc::UnboundedReceiver<Result<(), String>>>,
+
+    // Settings panel test status
+    pub device_test_status: Option<bool>,
+    pub database_test_status: Option<bool>,
 }
 
 impl App {
@@ -302,6 +346,7 @@ impl App {
             departments: Vec::new(),
             employees: Vec::new(),
             attendance: Vec::new(),
+            attendance_details: Vec::new(),
             is_loading: false,
             loading_message: String::new(),
             department_form: DepartmentForm::default(),
@@ -328,6 +373,8 @@ impl App {
             scanner_test_status: None,
             device_status: DeviceStatus::Disconnected,
             device_status_rx: None,
+            device_test_status: None,
+            database_test_status: None,
         };
 
         // Load initial data
@@ -419,6 +466,239 @@ impl App {
                 }
                 Err(e) => {
                     let _ = tx.send(UiMessage::LoadError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    /// Generate report based on current filter settings.
+    /// Uses paginated queries for better performance.
+    pub fn generate_report(&mut self) {
+        self.is_loading = true;
+        self.loading_message = "Generating report...".to_string();
+
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+        let filter = self.report_filter.clone();
+        let pagination = db::attendance::Pagination::new(filter.current_page, REPORT_PAGE_SIZE);
+
+        // Load counts first, then data
+        let pool_count = pool.clone();
+        let tx_count = tx.clone();
+        let filter_count = filter.clone();
+
+        // Get summary count
+        self.rt.spawn(async move {
+            match db::attendance::count_daily_summary(
+                &pool_count,
+                filter_count.start_date,
+                filter_count.end_date,
+                filter_count.department_id,
+            )
+            .await
+            {
+                Ok(count) => {
+                    let _ = tx_count.send(UiMessage::AttendanceCountLoaded(count));
+                }
+                Err(e) => {
+                    let _ = tx_count.send(UiMessage::LoadError(e.to_string()));
+                }
+            }
+        });
+
+        // Get details count
+        let pool_detail_count = pool.clone();
+        let tx_detail_count = tx.clone();
+        let filter_detail_count = filter.clone();
+
+        self.rt.spawn(async move {
+            match db::attendance::count_attendance_details(
+                &pool_detail_count,
+                filter_detail_count.start_date,
+                filter_detail_count.end_date,
+                filter_detail_count.department_id,
+            )
+            .await
+            {
+                Ok(count) => {
+                    let _ = tx_detail_count.send(UiMessage::AttendanceDetailsCountLoaded(count));
+                }
+                Err(e) => {
+                    let _ = tx_detail_count.send(UiMessage::LoadError(e.to_string()));
+                }
+            }
+        });
+
+        // Load paginated summary data
+        let pool_summary = pool.clone();
+        let tx_summary = tx.clone();
+        let filter_summary = filter.clone();
+        let pagination_summary = pagination;
+
+        self.rt.spawn(async move {
+            match db::attendance::get_daily_summary_paginated(
+                &pool_summary,
+                filter_summary.start_date,
+                filter_summary.end_date,
+                filter_summary.department_id,
+                pagination_summary,
+            )
+            .await
+            {
+                Ok(attendance) => {
+                    let _ = tx_summary.send(UiMessage::AttendanceLoaded(attendance));
+                }
+                Err(e) => {
+                    let _ = tx_summary.send(UiMessage::LoadError(e.to_string()));
+                }
+            }
+        });
+
+        // Load paginated detail data
+        self.rt.spawn(async move {
+            match db::attendance::get_attendance_details_paginated(
+                &pool,
+                filter.start_date,
+                filter.end_date,
+                filter.department_id,
+                pagination,
+            )
+            .await
+            {
+                Ok(details) => {
+                    let _ = tx.send(UiMessage::AttendanceDetailsLoaded(details));
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::LoadError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    /// Navigate to next page of report results.
+    pub fn next_page(&mut self) {
+        let total_pages = self.report_filter.total_pages();
+        if self.report_filter.current_page + 1 < total_pages {
+            self.report_filter.current_page += 1;
+            self.generate_report();
+        }
+    }
+
+    /// Navigate to previous page of report results.
+    pub fn prev_page(&mut self) {
+        if self.report_filter.current_page > 0 {
+            self.report_filter.current_page -= 1;
+            self.generate_report();
+        }
+    }
+
+    /// Go to first page of report results.
+    pub fn first_page(&mut self) {
+        if self.report_filter.current_page != 0 {
+            self.report_filter.current_page = 0;
+            self.generate_report();
+        }
+    }
+
+    /// Go to last page of report results.
+    pub fn last_page(&mut self) {
+        let total_pages = self.report_filter.total_pages();
+        let last_page = if total_pages > 0 { total_pages - 1 } else { 0 };
+        if self.report_filter.current_page != last_page {
+            self.report_filter.current_page = last_page;
+            self.generate_report();
+        }
+    }
+
+    /// Export summary report to Excel.
+    /// Fetches all data for the date range (not just paginated view).
+    pub fn export_summary_report(&mut self) {
+        self.is_loading = true;
+        self.loading_message = "Exporting summary report...".to_string();
+
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+        let filter = self.report_filter.clone();
+        let filename = crate::export::generate_export_filename("attendance_summary");
+
+        self.rt.spawn(async move {
+            // Fetch all data for export (not paginated)
+            let result = db::attendance::get_all_daily_summary_for_export(
+                &pool,
+                filter.start_date,
+                filter.end_date,
+                filter.department_id,
+            )
+            .await;
+
+            match result {
+                Ok(data) => {
+                    if data.is_empty() {
+                        let _ = tx.send(UiMessage::ExportFailed(
+                            "No data to export. Generate a report first.".to_string(),
+                        ));
+                        return;
+                    }
+
+                    let path = std::path::PathBuf::from(&filename);
+                    match crate::export::export_attendance_summary_to_excel(&data, &path) {
+                        Ok(()) => {
+                            let _ = tx.send(UiMessage::ExportCompleted(filename));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
+                }
+            }
+        });
+    }
+
+    /// Export detail report to Excel.
+    /// Fetches all data for the date range (not just paginated view).
+    pub fn export_detail_report(&mut self) {
+        self.is_loading = true;
+        self.loading_message = "Exporting detail report...".to_string();
+
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+        let filter = self.report_filter.clone();
+        let filename = crate::export::generate_export_filename("attendance_detail");
+
+        self.rt.spawn(async move {
+            // Fetch all data for export (not paginated)
+            let result = db::attendance::get_all_attendance_details_for_export(
+                &pool,
+                filter.start_date,
+                filter.end_date,
+                filter.department_id,
+            )
+            .await;
+
+            match result {
+                Ok(data) => {
+                    if data.is_empty() {
+                        let _ = tx.send(UiMessage::ExportFailed(
+                            "No data to export. Generate a report first.".to_string(),
+                        ));
+                        return;
+                    }
+
+                    let path = std::path::PathBuf::from(&filename);
+                    match crate::export::export_attendance_detail_to_excel(&data, &path) {
+                        Ok(()) => {
+                            let _ = tx.send(UiMessage::ExportCompleted(filename));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
                 }
             }
         });
@@ -557,6 +837,7 @@ impl App {
 
     /// Test device connection.
     pub fn test_device_connection(&mut self) {
+        self.device_test_status = None;
         self.log_info("Testing device connection...");
 
         let url = self.config.device.url.clone();
@@ -573,6 +854,48 @@ impl App {
                 }
             }
         });
+    }
+
+    /// Test database connection.
+    pub fn test_database_connection(&mut self) {
+        self.database_test_status = None;
+        self.log_info("Testing database connection...");
+
+        let conn_str = self.config.database.connection_string();
+        let tx = self.tx.clone();
+
+        self.rt.spawn(async move {
+            match db::connect(&conn_str).await {
+                Ok(pool) => match db::test_connection(&pool).await {
+                    Ok(_) => {
+                        let _ = tx.send(UiMessage::DatabaseTestResult(true));
+                    }
+                    Err(_) => {
+                        let _ = tx.send(UiMessage::DatabaseTestResult(false));
+                    }
+                },
+                Err(_) => {
+                    let _ = tx.send(UiMessage::DatabaseTestResult(false));
+                }
+            }
+        });
+    }
+
+    /// Save configuration to file.
+    pub fn save_config(&mut self) {
+        let config_path = AppConfig::default_path();
+
+        match self.config.save(&config_path) {
+            Ok(()) => {
+                self.config_modified = false;
+                self.success_message = Some("Settings saved successfully".to_string());
+                self.log_success("Settings saved");
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Failed to save settings: {}", e));
+                self.log_error(format!("Failed to save settings: {}", e));
+            }
+        }
     }
 
     /// Clear the activity log.
@@ -698,6 +1021,16 @@ impl App {
                     self.attendance = att;
                     self.is_loading = false;
                 }
+                UiMessage::AttendanceDetailsLoaded(details) => {
+                    self.attendance_details = details;
+                    self.is_loading = false;
+                }
+                UiMessage::AttendanceCountLoaded(count) => {
+                    self.report_filter.total_records = count;
+                }
+                UiMessage::AttendanceDetailsCountLoaded(_count) => {
+                    // Details count tracked separately if needed in future
+                }
                 UiMessage::LoadError(e) => {
                     self.error_message = Some(e.clone());
                     self.log_error(e);
@@ -745,14 +1078,17 @@ impl App {
                     self.log_error(e);
                 }
                 UiMessage::ExportCompleted(path) => {
+                    self.is_loading = false;
                     self.success_message = Some(format!("Exported to {}", path));
                     self.log_success(format!("Export completed: {}", path));
                 }
                 UiMessage::ExportFailed(e) => {
+                    self.is_loading = false;
                     self.error_message = Some(e.clone());
                     self.log_error(e);
                 }
                 UiMessage::DeviceTestResult(ok) => {
+                    self.device_test_status = Some(ok);
                     if ok {
                         self.device_status = DeviceStatus::Connected;
                         self.log_success("Device connection successful");
@@ -761,8 +1097,13 @@ impl App {
                         self.log_error("Device connection failed");
                     }
                 }
-                UiMessage::DatabaseTestResult(_ok) => {
-                    // Handle if needed
+                UiMessage::DatabaseTestResult(ok) => {
+                    self.database_test_status = Some(ok);
+                    if ok {
+                        self.log_success("Database connection successful");
+                    } else {
+                        self.log_error("Database connection failed");
+                    }
                 }
             }
         }
@@ -1110,16 +1451,14 @@ impl eframe::App for App {
                 }
             }
             Panel::Reports => {
-                // TODO: Implement reports panel
-                ui.centered_and_justified(|ui| {
-                    ui.label("Reports - Coming Soon");
-                });
+                if reports_panel::show(self, ui) {
+                    self.current_panel = Panel::Dashboard;
+                }
             }
             Panel::Settings => {
-                // TODO: Implement settings panel
-                ui.centered_and_justified(|ui| {
-                    ui.label("Settings - Coming Soon");
-                });
+                if settings_panel::show(self, ui) {
+                    self.current_panel = Panel::Dashboard;
+                }
             }
         });
     }

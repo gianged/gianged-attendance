@@ -260,12 +260,12 @@ impl App {
 
 ## Deliverables
 
-- [ ] Date range filter (from/to)
-- [ ] Quick date buttons (Today, This Week, This Month, Last 30 Days)
-- [ ] Department filter dropdown
-- [ ] Generate Report button
-- [ ] Export to Excel button
-- [ ] Results table with all columns
-- [ ] Work hours calculation
-- [ ] generate_report() method
-- [ ] export_report() method
+- [x] Date range filter (from/to)
+- [x] Quick date buttons (Today, This Week, This Month, Last 30 Days)
+- [x] Department filter dropdown
+- [x] Generate Report button
+- [x] Export to Excel button
+- [x] Results table with all columns
+- [x] Work hours calculation
+- [x] generate_report() method
+- [x] export_report() method

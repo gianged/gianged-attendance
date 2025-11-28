@@ -293,14 +293,14 @@ impl App {
 
 ## Deliverables
 
-- [ ] Device configuration fields
-- [ ] Test device connection button
-- [ ] Database configuration fields
-- [ ] Test database connection button
-- [ ] Sync options (days, max UID, auto-sync)
-- [ ] UI options (start minimized, tray)
-- [ ] Save Settings button
-- [ ] Reset to Defaults button
-- [ ] Unsaved changes indicator
-- [ ] test_database_connection() method
-- [ ] save_config() method
+- [x] Device configuration fields
+- [x] Test device connection button
+- [x] Database configuration fields
+- [x] Test database connection button
+- [x] Sync options (days, max UID, auto-sync)
+- [x] UI options (start minimized, tray)
+- [x] Save Settings button
+- [x] Reset to Defaults button
+- [x] Unsaved changes indicator
+- [x] test_database_connection() method
+- [x] save_config() method
