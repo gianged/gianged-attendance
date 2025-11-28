@@ -8,14 +8,14 @@ use sea_orm::*;
 
 /// Insert a batch of attendance logs with deduplication.
 ///
-/// Uses ON CONFLICT DO NOTHING to skip duplicates based on (device_uid, check_time).
+/// Uses ON CONFLICT DO NOTHING to skip duplicates based on (scanner_uid, check_time).
 /// Returns the count of successfully inserted records.
 pub async fn insert_batch(db: &DatabaseConnection, records: &[CreateAttendanceLog]) -> Result<usize, DbErr> {
     let mut inserted = 0;
 
     for record in records {
         let model = attendance_logs::ActiveModel {
-            device_uid: Set(record.device_uid),
+            scanner_uid: Set(record.scanner_uid),
             check_time: Set(record.check_time.into()),
             verify_type: Set(record.verify_type),
             status: Set(record.status),
@@ -25,7 +25,7 @@ pub async fn insert_batch(db: &DatabaseConnection, records: &[CreateAttendanceLo
 
         let result = AttendanceLogs::insert(model)
             .on_conflict(
-                OnConflict::columns([attendance_logs::Column::DeviceUid, attendance_logs::Column::CheckTime])
+                OnConflict::columns([attendance_logs::Column::ScannerUid, attendance_logs::Column::CheckTime])
                     .do_nothing()
                     .to_owned(),
             )
@@ -48,7 +48,7 @@ pub async fn insert_one(
     record: &CreateAttendanceLog,
 ) -> Result<Option<attendance_logs::Model>, DbErr> {
     let model = attendance_logs::ActiveModel {
-        device_uid: Set(record.device_uid),
+        scanner_uid: Set(record.scanner_uid),
         check_time: Set(record.check_time.into()),
         verify_type: Set(record.verify_type),
         status: Set(record.status),
@@ -79,10 +79,10 @@ pub async fn get_by_date_range(
         .await
 }
 
-/// Get attendance logs for a specific device within a date range.
-pub async fn get_by_device_uid(
+/// Get attendance logs for a specific scanner UID within a date range.
+pub async fn get_by_scanner_uid(
     db: &DatabaseConnection,
-    device_uid: i32,
+    scanner_uid: i32,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<Vec<attendance_logs::Model>, DbErr> {
@@ -90,7 +90,7 @@ pub async fn get_by_device_uid(
     let end = end_date.and_hms_opt(23, 59, 59).unwrap().and_utc();
 
     AttendanceLogs::find()
-        .filter(attendance_logs::Column::DeviceUid.eq(device_uid))
+        .filter(attendance_logs::Column::ScannerUid.eq(scanner_uid))
         .filter(attendance_logs::Column::CheckTime.between(start, end))
         .order_by_desc(attendance_logs::Column::CheckTime)
         .all(db)
@@ -179,7 +179,7 @@ pub async fn get_today_count(db: &DatabaseConnection) -> Result<u64, DbErr> {
     let result: Option<i64> = AttendanceLogs::find()
         .filter(attendance_logs::Column::CheckTime.between(start, end))
         .select_only()
-        .column_as(Expr::col(attendance_logs::Column::DeviceUid).count_distinct(), "count")
+        .column_as(Expr::col(attendance_logs::Column::ScannerUid).count_distinct(), "count")
         .into_tuple()
         .one(db)
         .await?;

@@ -49,10 +49,10 @@ pub async fn get_by_id(db: &DatabaseConnection, id: i32) -> Result<Option<employ
     Employees::find_by_id(id).one(db).await
 }
 
-/// Get employee by device UID.
-pub async fn get_by_device_uid(db: &DatabaseConnection, device_uid: i32) -> Result<Option<employees::Model>, DbErr> {
+/// Get employee by scanner UID.
+pub async fn get_by_scanner_uid(db: &DatabaseConnection, scanner_uid: i32) -> Result<Option<employees::Model>, DbErr> {
     Employees::find()
-        .filter(employees::Column::DeviceUid.eq(device_uid))
+        .filter(employees::Column::ScannerUid.eq(scanner_uid))
         .one(db)
         .await
 }
@@ -71,7 +71,7 @@ pub async fn create(db: &DatabaseConnection, data: CreateEmployee) -> Result<emp
         employee_code: Set(data.employee_code),
         full_name: Set(data.full_name),
         department_id: Set(data.department_id),
-        device_uid: Set(data.device_uid),
+        scanner_uid: Set(data.scanner_uid),
         gender: Set(data.gender),
         birth_date: Set(data.birth_date),
         start_date: Set(data.start_date),
@@ -97,8 +97,8 @@ pub async fn update(db: &DatabaseConnection, id: i32, data: UpdateEmployee) -> R
             if let Some(department_id) = data.department_id {
                 active.department_id = Set(department_id);
             }
-            if let Some(device_uid) = data.device_uid {
-                active.device_uid = Set(device_uid);
+            if let Some(scanner_uid) = data.scanner_uid {
+                active.scanner_uid = Set(scanner_uid);
             }
             if let Some(gender) = data.gender {
                 active.gender = Set(gender);
@@ -138,13 +138,13 @@ pub async fn code_exists(db: &DatabaseConnection, code: &str, exclude_id: Option
     Ok(count > 0)
 }
 
-/// Check if device UID is already assigned (for validation).
-pub async fn device_uid_exists(
+/// Check if scanner UID is already assigned (for validation).
+pub async fn scanner_uid_exists(
     db: &DatabaseConnection,
-    device_uid: i32,
+    scanner_uid: i32,
     exclude_id: Option<i32>,
 ) -> Result<bool, DbErr> {
-    let mut query = Employees::find().filter(employees::Column::DeviceUid.eq(device_uid));
+    let mut query = Employees::find().filter(employees::Column::ScannerUid.eq(scanner_uid));
 
     if let Some(id) = exclude_id {
         query = query.filter(employees::Column::Id.ne(id));

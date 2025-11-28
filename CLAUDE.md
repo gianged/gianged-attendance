@@ -81,13 +81,13 @@ PostgreSQL schemas: `app` (tables/views), `system` (functions/triggers).
 
 **app.employees**
 
-- `employee_code`: Unique business identifier
-- `device_uid`: Links to ZKTeco device user ID
+- `employee_code`: Unique business identifier (same as scanner_uid)
+- `scanner_uid`: Employee's user ID on fingerprint scanner
 - `department_id`: FK to departments
 
 **app.attendance_logs**
 
-- `device_uid` + `check_time`: Unique constraint for deduplication
+- `scanner_uid` + `check_time`: Unique constraint for deduplication
 - `verify_type`: 2=fingerprint, 101=card
 - `source`: 'device' or 'manual'
 
@@ -118,13 +118,13 @@ Query using `FromQueryResult`:
 ### Data Format (TSV)
 
 ```
-device_uid    [empty]    timestamp             verify_type    status
-20                       2025-11-25 07:36:58   2              0
+scanner_uid    [empty]    timestamp             verify_type    status
+20                        2025-11-25 07:36:58   2              0
 ```
 
 | Field       | Description                        |
 | ----------- | ---------------------------------- |
-| device_uid  | Employee ID on device              |
+| scanner_uid | Employee's user ID on scanner      |
 | timestamp   | Check-in/out datetime (local time) |
 | verify_type | 2=fingerprint, 101=card            |
 | status      | Always 0                           |

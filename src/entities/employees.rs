@@ -13,7 +13,7 @@ pub struct Model {
     pub full_name: String,
     pub department_id: Option<i32>,
     #[sea_orm(unique)]
-    pub device_uid: Option<i32>,
+    pub scanner_uid: Option<i32>,
     pub gender: Option<String>,
     pub birth_date: Option<Date>,
     pub start_date: Date,

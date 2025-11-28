@@ -162,7 +162,7 @@ fn show_table(app: &mut App, ui: &mut Ui) {
                         .unwrap_or("-");
                     ui.label(dept_name);
 
-                    ui.label(emp.device_uid.map(|u| u.to_string()).unwrap_or("-".to_string()));
+                    ui.label(emp.scanner_uid.map(|u| u.to_string()).unwrap_or("-".to_string()));
 
                     ui.label(emp.gender.as_deref().unwrap_or("-"));
                     ui.label(emp.start_date.to_string());
@@ -239,9 +239,9 @@ fn show_form_dialog(app: &mut App, ctx: &egui::Context) {
                         });
                     ui.end_row();
 
-                    ui.label("Device UID:");
+                    ui.label("Scanner UID:");
                     ui.add(
-                        egui::TextEdit::singleline(&mut app.employee_form.device_uid)
+                        egui::TextEdit::singleline(&mut app.employee_form.scanner_uid)
                             .desired_width(100.0)
                             .hint_text("Optional"),
                     );
@@ -327,13 +327,13 @@ fn save_employee(app: &mut App) {
         }
     };
 
-    let device_uid = if form.device_uid.is_empty() {
+    let scanner_uid = if form.scanner_uid.is_empty() {
         None
     } else {
-        match form.device_uid.parse() {
+        match form.scanner_uid.parse() {
             Ok(uid) => Some(uid),
             Err(_) => {
-                app.error_message = Some("Invalid device UID (must be a number)".to_string());
+                app.error_message = Some("Invalid scanner UID (must be a number)".to_string());
                 return;
             }
         }
@@ -345,7 +345,7 @@ fn save_employee(app: &mut App) {
             employee_code: Some(form.employee_code.clone()),
             full_name: Some(form.full_name.clone()),
             department_id: Some(form.department_id),
-            device_uid: Some(device_uid),
+            scanner_uid: Some(scanner_uid),
             gender: Some(form.gender.clone()),
             birth_date: Some(form.birth_date),
             start_date: Some(start_date),
@@ -357,7 +357,7 @@ fn save_employee(app: &mut App) {
             employee_code: form.employee_code.clone(),
             full_name: form.full_name.clone(),
             department_id: form.department_id,
-            device_uid,
+            scanner_uid,
             gender: form.gender.clone(),
             birth_date: form.birth_date,
             start_date,

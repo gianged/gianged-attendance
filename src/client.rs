@@ -112,7 +112,7 @@ impl ZkClient {
 
     /// Parse TSV attendance data from device response.
     ///
-    /// Format: `device_uid \t [empty] \t timestamp \t verify_type \t status`
+    /// Format: `scanner_uid \t [empty] \t timestamp \t verify_type \t status`
     fn parse_attendance_data(&self, data: &str) -> Result<Vec<CreateAttendanceLog>> {
         let mut records = Vec::new();
 
@@ -122,13 +122,13 @@ impl ZkClient {
                 continue;
             }
 
-            // Format: device_uid \t [empty] \t timestamp \t verify_type \t status
+            // Format: scanner_uid \t [empty] \t timestamp \t verify_type \t status
             let parts: Vec<&str> = line.split('\t').collect();
             if parts.len() < 5 {
                 continue;
             }
 
-            let device_uid = match parts[0].trim().parse::<i32>() {
+            let scanner_uid = match parts[0].trim().parse::<i32>() {
                 Ok(uid) => uid,
                 Err(_) => continue,
             };
@@ -144,7 +144,7 @@ impl ZkClient {
             let status = parts[4].trim().parse::<i32>().unwrap_or(0);
 
             records.push(CreateAttendanceLog {
-                device_uid,
+                scanner_uid,
                 check_time,
                 verify_type,
                 status,
@@ -188,7 +188,7 @@ mod tests {
         let records = client.parse_attendance_data(data).unwrap();
 
         assert_eq!(records.len(), 1);
-        assert_eq!(records[0].device_uid, 20);
+        assert_eq!(records[0].scanner_uid, 20);
         assert_eq!(records[0].verify_type, 2);
         assert_eq!(records[0].status, 0);
         assert_eq!(records[0].source, "device");
@@ -201,8 +201,8 @@ mod tests {
         let records = client.parse_attendance_data(data).unwrap();
 
         assert_eq!(records.len(), 2);
-        assert_eq!(records[0].device_uid, 20);
-        assert_eq!(records[1].device_uid, 65);
+        assert_eq!(records[0].scanner_uid, 20);
+        assert_eq!(records[1].scanner_uid, 65);
     }
 
     #[test]

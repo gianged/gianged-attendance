@@ -185,7 +185,6 @@ pub fn export_employees_to_excel(
         "Employee Code",
         "Full Name",
         "Department",
-        "Device UID",
         "Gender",
         "Birth Date",
         "Start Date",
@@ -200,11 +199,10 @@ pub fn export_employees_to_excel(
     worksheet.set_column_width(0, 15)?; // Employee Code
     worksheet.set_column_width(1, 30)?; // Full Name
     worksheet.set_column_width(2, 25)?; // Department
-    worksheet.set_column_width(3, 12)?; // Device UID
-    worksheet.set_column_width(4, 10)?; // Gender
-    worksheet.set_column_width(5, 12)?; // Birth Date
-    worksheet.set_column_width(6, 12)?; // Start Date
-    worksheet.set_column_width(7, 8)?; // Active
+    worksheet.set_column_width(3, 10)?; // Gender
+    worksheet.set_column_width(4, 12)?; // Birth Date
+    worksheet.set_column_width(5, 12)?; // Start Date
+    worksheet.set_column_width(6, 8)?; // Active
 
     // Data rows
     for (idx, emp) in employees.iter().enumerate() {
@@ -221,30 +219,23 @@ pub fn export_employees_to_excel(
             .unwrap_or("");
         worksheet.write_string(row, 2, dept_name)?;
 
-        // Device UID
-        if let Some(uid) = emp.device_uid {
-            worksheet.write_number(row, 3, uid as f64)?;
-        } else {
-            worksheet.write_string(row, 3, "")?;
-        }
-
-        worksheet.write_string(row, 4, emp.gender.as_deref().unwrap_or(""))?;
+        worksheet.write_string(row, 3, emp.gender.as_deref().unwrap_or(""))?;
 
         // Birth date
         if let Some(date) = emp.birth_date {
-            worksheet.write_string(row, 5, date.to_string())?;
+            worksheet.write_string(row, 4, date.to_string())?;
         } else {
-            worksheet.write_string(row, 5, "")?;
+            worksheet.write_string(row, 4, "")?;
         }
 
-        worksheet.write_string(row, 6, emp.start_date.to_string())?;
-        worksheet.write_string(row, 7, if emp.is_active { "Yes" } else { "No" })?;
+        worksheet.write_string(row, 5, emp.start_date.to_string())?;
+        worksheet.write_string(row, 6, if emp.is_active { "Yes" } else { "No" })?;
     }
 
     // Autofilter
     if !employees.is_empty() {
         let last_row = employees.len() as u32;
-        worksheet.autofilter(0, 0, last_row, 7)?;
+        worksheet.autofilter(0, 0, last_row, 6)?;
     }
 
     // Freeze top row

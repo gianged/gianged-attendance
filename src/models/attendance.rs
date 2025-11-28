@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// DTO for creating an attendance log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAttendanceLog {
-    pub device_uid: i32,
+    pub scanner_uid: i32,
     pub check_time: DateTime<Utc>,
     pub verify_type: i32,
     pub status: i32,
@@ -34,7 +34,7 @@ pub struct DailyAttendance {
 #[derive(Debug, Clone, Serialize, Deserialize, FromQueryResult)]
 pub struct AttendanceDetail {
     pub id: i64,
-    pub device_uid: i32,
+    pub scanner_uid: i32,
     pub employee_id: Option<i32>,
     pub employee_code: Option<String>,
     pub full_name: Option<String>,

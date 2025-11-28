@@ -73,7 +73,7 @@ CREATE TABLE app.employees (
     employee_code   VARCHAR(20) NOT NULL,
     full_name       VARCHAR(100) NOT NULL,
     department_id   INTEGER,
-    device_uid      INTEGER,
+    scanner_uid     INTEGER,
     gender          VARCHAR(10),
     birth_date      DATE,
     start_date      DATE NOT NULL,
@@ -92,7 +92,7 @@ CREATE TABLE app.employees (
 
     -- Unique Constraints
     CONSTRAINT uq_employees_code UNIQUE (employee_code),
-    CONSTRAINT uq_employees_device_uid UNIQUE (device_uid),
+    CONSTRAINT uq_employees_scanner_uid UNIQUE (scanner_uid),
 
     -- Check Constraints
     CONSTRAINT ck_employees_gender CHECK (gender IN ('male', 'female', 'other'))
@@ -100,10 +100,10 @@ CREATE TABLE app.employees (
 
 COMMENT ON TABLE app.employees IS 'Employee records';
 COMMENT ON COLUMN app.employees.id IS 'Primary key, auto-increment';
-COMMENT ON COLUMN app.employees.employee_code IS 'Unique employee code (e.g., S001, S002)';
+COMMENT ON COLUMN app.employees.employee_code IS 'Unique employee code (same as scanner_uid: 12, 17, 20, etc.)';
 COMMENT ON COLUMN app.employees.full_name IS 'Employee full name';
 COMMENT ON COLUMN app.employees.department_id IS 'FK to departments';
-COMMENT ON COLUMN app.employees.device_uid IS 'Fingerprint scanner device ID';
+COMMENT ON COLUMN app.employees.scanner_uid IS 'Employee user ID on fingerprint scanner';
 COMMENT ON COLUMN app.employees.gender IS 'Gender: male, female, other';
 COMMENT ON COLUMN app.employees.birth_date IS 'Date of birth';
 COMMENT ON COLUMN app.employees.start_date IS 'Employment start date';
@@ -118,7 +118,7 @@ COMMENT ON COLUMN app.employees.updated_at IS 'Record last update timestamp';
 -- -----------------------------------------------------------------------------
 CREATE TABLE app.attendance_logs (
     id              BIGSERIAL,
-    device_uid      INTEGER NOT NULL,
+    scanner_uid     INTEGER NOT NULL,
     check_time      TIMESTAMPTZ NOT NULL,
     verify_type     INTEGER NOT NULL DEFAULT 2,
     status          INTEGER NOT NULL DEFAULT 0,
@@ -129,7 +129,7 @@ CREATE TABLE app.attendance_logs (
     CONSTRAINT pk_attendance_logs PRIMARY KEY (id),
 
     -- Unique Constraints
-    CONSTRAINT uq_attendance_logs_device_time UNIQUE (device_uid, check_time),
+    CONSTRAINT uq_attendance_logs_scanner_time UNIQUE (scanner_uid, check_time),
 
     -- Check Constraints
     CONSTRAINT ck_attendance_logs_verify_type CHECK (verify_type IN (2, 101)),
@@ -138,7 +138,7 @@ CREATE TABLE app.attendance_logs (
 
 COMMENT ON TABLE app.attendance_logs IS 'Attendance check-in/out records from fingerprint scanner';
 COMMENT ON COLUMN app.attendance_logs.id IS 'Primary key, auto-increment';
-COMMENT ON COLUMN app.attendance_logs.device_uid IS 'Employee device ID (maps to employees.device_uid)';
+COMMENT ON COLUMN app.attendance_logs.scanner_uid IS 'Employee user ID on scanner (maps to employees.scanner_uid)';
 COMMENT ON COLUMN app.attendance_logs.check_time IS 'Check-in/out timestamp';
 COMMENT ON COLUMN app.attendance_logs.verify_type IS 'Verification method: 2=fingerprint, 101=card';
 COMMENT ON COLUMN app.attendance_logs.status IS 'Device status code (typically 0)';
@@ -189,8 +189,8 @@ CREATE INDEX idx_departments_active ON app.departments(is_active)
 CREATE INDEX idx_employees_department ON app.employees(department_id)
     WHERE department_id IS NOT NULL;
 
-CREATE INDEX idx_employees_device_uid ON app.employees(device_uid)
-    WHERE device_uid IS NOT NULL;
+CREATE INDEX idx_employees_scanner_uid ON app.employees(scanner_uid)
+    WHERE scanner_uid IS NOT NULL;
 
 CREATE INDEX idx_employees_active ON app.employees(is_active)
     WHERE is_active = true;
@@ -198,11 +198,11 @@ CREATE INDEX idx_employees_active ON app.employees(is_active)
 CREATE INDEX idx_employees_code ON app.employees(employee_code);
 
 -- Attendance Logs
-CREATE INDEX idx_attendance_logs_device_uid ON app.attendance_logs(device_uid);
+CREATE INDEX idx_attendance_logs_scanner_uid ON app.attendance_logs(scanner_uid);
 
 CREATE INDEX idx_attendance_logs_check_time ON app.attendance_logs(check_time);
 
-CREATE INDEX idx_attendance_logs_device_time_desc ON app.attendance_logs(device_uid, check_time DESC);
+CREATE INDEX idx_attendance_logs_scanner_time_desc ON app.attendance_logs(scanner_uid, check_time DESC);
 
 CREATE INDEX idx_attendance_logs_date ON app.attendance_logs(system.fn_date_from_timestamptz(check_time));
 
@@ -233,7 +233,7 @@ CREATE TRIGGER trg_employees_update_timestamp
 CREATE OR REPLACE VIEW app.v_attendance_details AS
 SELECT
     al.id,
-    al.device_uid,
+    al.scanner_uid,
     e.id AS employee_id,
     e.employee_code,
     e.full_name,
@@ -250,7 +250,7 @@ SELECT
     al.source,
     al.created_at
 FROM app.attendance_logs al
-LEFT JOIN app.employees e ON al.device_uid = e.device_uid
+LEFT JOIN app.employees e ON al.scanner_uid = e.scanner_uid
 LEFT JOIN app.departments d ON e.department_id = d.id;
 
 COMMENT ON VIEW app.v_attendance_details IS 'Attendance logs with employee and department names';
@@ -272,7 +272,7 @@ SELECT
     COUNT(*) AS check_count,
     EXTRACT(EPOCH FROM (MAX(al.check_time) - MIN(al.check_time))) / 3600.0 AS work_hours
 FROM app.attendance_logs al
-JOIN app.employees e ON al.device_uid = e.device_uid
+JOIN app.employees e ON al.scanner_uid = e.scanner_uid
 LEFT JOIN app.departments d ON e.department_id = d.id
 GROUP BY e.id, e.employee_code, e.full_name, e.department_id, d.name, DATE(al.check_time);
 
@@ -289,7 +289,7 @@ SELECT
     e.full_name,
     e.department_id,
     d.name AS department_name,
-    e.device_uid,
+    e.scanner_uid,
     e.gender,
     e.birth_date,
     e.start_date,
