@@ -7,6 +7,7 @@ use eframe::egui::{self, Align, Layout, ProgressBar};
 use sea_orm::DatabaseConnection;
 
 use crate::config::AppConfig;
+use crate::sync::run_sync_background;
 
 use super::components::colors;
 use super::{dashboard, department_panel, staff_panel, sync_panel};
@@ -161,25 +162,12 @@ impl MainApp {
             message: "Starting...".to_string(),
         };
 
-        let _config = self.config.clone();
-        let _pool = self.pool.clone();
+        let config = self.config.clone();
+        let db = self.pool.clone();
 
         self.rt.spawn(async move {
             let _ = tx.send(SyncProgress::Started);
-
-            // Simulate sync progress (actual implementation would use sync service)
-            for i in 1..=10 {
-                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                let _ = tx.send(SyncProgress::Progress {
-                    percent: i as f32 / 10.0,
-                    message: format!("Processing batch {}...", i),
-                });
-            }
-
-            let _ = tx.send(SyncProgress::Completed {
-                records: 42,
-                timestamp: Local::now(),
-            });
+            run_sync_background(config, db, tx).await;
         });
     }
 

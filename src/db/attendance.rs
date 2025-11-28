@@ -1,24 +1,15 @@
-# Phase 10: Attendance Repository
+//! Attendance repository for sync and reporting operations.
 
-## Objective
-
-Implement database operations for attendance logs using SeaORM.
-
----
-
-## Tasks
-
-### 10.1 Create Repository
-
-**`src/db/attendance.rs`**
-
-```rust
 use crate::entities::{attendance_logs, prelude::*};
 use crate::models::attendance::{CreateAttendanceLog, DailyAttendance};
 use chrono::{DateTime, NaiveDate, Utc};
+use sea_orm::sea_query::OnConflict;
 use sea_orm::*;
 
-/// Insert a batch of attendance logs (with deduplication)
+/// Insert a batch of attendance logs with deduplication.
+///
+/// Uses ON CONFLICT DO NOTHING to skip duplicates based on (device_uid, check_time).
+/// Returns the count of successfully inserted records.
 pub async fn insert_batch(
     db: &DatabaseConnection,
     records: &[CreateAttendanceLog],
@@ -28,14 +19,13 @@ pub async fn insert_batch(
     for record in records {
         let model = attendance_logs::ActiveModel {
             device_uid: Set(record.device_uid),
-            check_time: Set(record.check_time),
+            check_time: Set(record.check_time.into()),
             verify_type: Set(record.verify_type),
             status: Set(record.status),
             source: Set(record.source.clone()),
             ..Default::default()
         };
 
-        // Use on_conflict to handle duplicates
         let result = AttendanceLogs::insert(model)
             .on_conflict(
                 OnConflict::columns([
@@ -56,14 +46,16 @@ pub async fn insert_batch(
     Ok(inserted)
 }
 
-/// Insert a single attendance log
+/// Insert a single attendance log.
+///
+/// Returns None if the record already exists (duplicate).
 pub async fn insert_one(
     db: &DatabaseConnection,
     record: &CreateAttendanceLog,
 ) -> Result<Option<attendance_logs::Model>, DbErr> {
     let model = attendance_logs::ActiveModel {
         device_uid: Set(record.device_uid),
-        check_time: Set(record.check_time),
+        check_time: Set(record.check_time.into()),
         verify_type: Set(record.verify_type),
         status: Set(record.status),
         source: Set(record.source.clone()),
@@ -72,12 +64,12 @@ pub async fn insert_one(
 
     match model.insert(db).await {
         Ok(inserted) => Ok(Some(inserted)),
-        Err(DbErr::RecordNotInserted) => Ok(None), // Conflict, already exists
+        Err(DbErr::RecordNotInserted) => Ok(None),
         Err(e) => Err(e),
     }
 }
 
-/// Get attendance logs by date range
+/// Get attendance logs within a date range.
 pub async fn get_by_date_range(
     db: &DatabaseConnection,
     start_date: NaiveDate,
@@ -93,7 +85,7 @@ pub async fn get_by_date_range(
         .await
 }
 
-/// Get attendance logs for a specific employee
+/// Get attendance logs for a specific device within a date range.
 pub async fn get_by_device_uid(
     db: &DatabaseConnection,
     device_uid: i32,
@@ -111,7 +103,7 @@ pub async fn get_by_device_uid(
         .await
 }
 
-/// Get daily attendance summary (from view)
+/// Get daily attendance summary from the view.
 pub async fn get_daily_summary(
     db: &DatabaseConnection,
     start_date: NaiveDate,
@@ -141,7 +133,7 @@ pub async fn get_daily_summary(
     .await
 }
 
-/// Get daily summary filtered by department
+/// Get daily attendance summary filtered by department.
 pub async fn get_daily_summary_by_department(
     db: &DatabaseConnection,
     department_id: i32,
@@ -172,19 +164,17 @@ pub async fn get_daily_summary_by_department(
     .await
 }
 
-/// Get latest check time (for incremental sync)
-pub async fn get_latest_check_time(
-    db: &DatabaseConnection,
-) -> Result<Option<DateTime<Utc>>, DbErr> {
+/// Get the latest check time for incremental sync.
+pub async fn get_latest_check_time(db: &DatabaseConnection) -> Result<Option<DateTime<Utc>>, DbErr> {
     let result = AttendanceLogs::find()
         .order_by_desc(attendance_logs::Column::CheckTime)
         .one(db)
         .await?;
 
-    Ok(result.map(|r| r.check_time))
+    Ok(result.map(|r| r.check_time.with_timezone(&Utc)))
 }
 
-/// Get today's attendance count (unique employees)
+/// Get count of unique employees who checked in today.
 pub async fn get_today_count(db: &DatabaseConnection) -> Result<u64, DbErr> {
     use sea_orm::sea_query::Expr;
 
@@ -192,7 +182,6 @@ pub async fn get_today_count(db: &DatabaseConnection) -> Result<u64, DbErr> {
     let start = today.and_hms_opt(0, 0, 0).unwrap().and_utc();
     let end = today.and_hms_opt(23, 59, 59).unwrap().and_utc();
 
-    // Count distinct device_uid for today
     let result: Option<i64> = AttendanceLogs::find()
         .filter(attendance_logs::Column::CheckTime.between(start, end))
         .select_only()
@@ -207,7 +196,7 @@ pub async fn get_today_count(db: &DatabaseConnection) -> Result<u64, DbErr> {
     Ok(result.unwrap_or(0) as u64)
 }
 
-/// Delete attendance logs before a date
+/// Delete attendance logs before a given date.
 pub async fn delete_before(db: &DatabaseConnection, before_date: NaiveDate) -> Result<u64, DbErr> {
     let before = before_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
 
@@ -219,44 +208,7 @@ pub async fn delete_before(db: &DatabaseConnection, before_date: NaiveDate) -> R
     Ok(result.rows_affected)
 }
 
-/// Get total attendance log count
+/// Get total attendance log count.
 pub async fn count_all(db: &DatabaseConnection) -> Result<u64, DbErr> {
     AttendanceLogs::find().count(db).await
 }
-```
-
-### 10.2 Update Module Export
-
-**`src/db/mod.rs`**
-
-```rust
-pub mod connection;
-pub mod department;
-pub mod employee;
-pub mod attendance;
-
-pub use connection::{connect, test_connection, get_version, get_table_counts, TableCounts};
-```
-
----
-
-## Notes
-
-- View queries use `FromQueryResult` with raw SQL via `Statement`
-- Batch insert uses `on_conflict().do_nothing()` for deduplication
-- Date range queries convert `NaiveDate` to `DateTime<Utc>` for proper timezone handling
-
----
-
-## Deliverables
-
-- [x] insert_batch function (with ON CONFLICT)
-- [x] insert_one function
-- [x] get_by_date_range function
-- [x] get_by_device_uid function
-- [x] get_daily_summary function (view query)
-- [x] get_daily_summary_by_department function (view query)
-- [x] get_latest_check_time function
-- [x] get_today_count function
-- [x] delete_before function
-- [x] count_all function

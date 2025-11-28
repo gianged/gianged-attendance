@@ -201,11 +201,11 @@ pub async fn run_sync_background(
 
 ## Deliverables
 
-- [ ] SyncResult struct with summary
-- [ ] SyncService struct
-- [ ] sync() basic function
-- [ ] sync_with_progress() with callback
-- [ ] test_device_connection()
-- [ ] test_device_login()
-- [ ] Background sync task
-- [ ] SyncMessage enum for UI communication
+- [x] SyncResult struct with summary
+- [x] SyncService struct
+- [x] sync() basic function
+- [x] sync_with_progress() with callback
+- [x] test_device_connection()
+- [x] test_device_login()
+- [x] Background sync task
+- [x] SyncMessage enum for UI communication

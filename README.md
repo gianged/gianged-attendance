@@ -137,4 +137,4 @@ sea-orm-cli generate entity \
 
 ## License
 
-Private/Internal Use
+MIT

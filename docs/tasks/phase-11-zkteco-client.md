@@ -192,10 +192,10 @@ mod tests {
 
 ## Deliverables
 
-- [ ] ZkClient struct
-- [ ] new() constructor with cookie jar
-- [ ] login() with form data
-- [ ] download_attendance() function
-- [ ] parse_attendance_data() TSV parser
-- [ ] test_connection() function
-- [ ] Unit tests for parsing
+- [x] ZkClient struct
+- [x] new() constructor with cookie jar
+- [x] login() with form data
+- [x] download_attendance() function
+- [x] parse_attendance_data() TSV parser
+- [x] test_connection() function
+- [x] Unit tests for parsing

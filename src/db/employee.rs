@@ -1,23 +1,10 @@
-# Phase 09: Employee Repository
+//! Employee repository with CRUD operations.
 
-## Objective
-
-Implement CRUD operations for employees using SeaORM.
-
----
-
-## Tasks
-
-### 9.1 Create Repository
-
-**`src/db/employee.rs`**
-
-```rust
 use crate::entities::{employees, prelude::*};
 use crate::models::employee::{CreateEmployee, UpdateEmployee};
 use sea_orm::*;
 
-/// List all employees ordered by employee_code
+/// List all employees ordered by employee_code.
 pub async fn list_all(db: &DatabaseConnection) -> Result<Vec<employees::Model>, DbErr> {
     Employees::find()
         .order_by_asc(employees::Column::EmployeeCode)
@@ -25,7 +12,7 @@ pub async fn list_all(db: &DatabaseConnection) -> Result<Vec<employees::Model>, 
         .await
 }
 
-/// List employees by department
+/// List employees by department.
 pub async fn list_by_department(
     db: &DatabaseConnection,
     department_id: i32,
@@ -37,7 +24,7 @@ pub async fn list_by_department(
         .await
 }
 
-/// List only active employees
+/// List only active employees.
 pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<employees::Model>, DbErr> {
     Employees::find()
         .filter(employees::Column::IsActive.eq(true))
@@ -46,7 +33,7 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<employees::Model
         .await
 }
 
-/// Search employees by code or name
+/// Search employees by code or name.
 pub async fn search(
     db: &DatabaseConnection,
     query: &str,
@@ -63,7 +50,7 @@ pub async fn search(
         .await
 }
 
-/// Get employee by ID
+/// Get employee by ID.
 pub async fn get_by_id(
     db: &DatabaseConnection,
     id: i32,
@@ -71,7 +58,7 @@ pub async fn get_by_id(
     Employees::find_by_id(id).one(db).await
 }
 
-/// Get employee by device UID
+/// Get employee by device UID.
 pub async fn get_by_device_uid(
     db: &DatabaseConnection,
     device_uid: i32,
@@ -82,7 +69,7 @@ pub async fn get_by_device_uid(
         .await
 }
 
-/// Get employee by employee code
+/// Get employee by employee code.
 pub async fn get_by_code(
     db: &DatabaseConnection,
     code: &str,
@@ -93,7 +80,7 @@ pub async fn get_by_code(
         .await
 }
 
-/// Create a new employee
+/// Create a new employee.
 pub async fn create(
     db: &DatabaseConnection,
     data: CreateEmployee,
@@ -111,7 +98,7 @@ pub async fn create(
     model.insert(db).await
 }
 
-/// Update an existing employee
+/// Update an existing employee.
 pub async fn update(
     db: &DatabaseConnection,
     id: i32,
@@ -155,13 +142,13 @@ pub async fn update(
     }
 }
 
-/// Delete an employee by ID
+/// Delete an employee by ID.
 pub async fn delete(db: &DatabaseConnection, id: i32) -> Result<bool, DbErr> {
     let result = Employees::delete_by_id(id).exec(db).await?;
     Ok(result.rows_affected > 0)
 }
 
-/// Check if employee code exists
+/// Check if employee code exists (for validation).
 pub async fn code_exists(
     db: &DatabaseConnection,
     code: &str,
@@ -177,7 +164,7 @@ pub async fn code_exists(
     Ok(count > 0)
 }
 
-/// Check if device UID is already assigned
+/// Check if device UID is already assigned (for validation).
 pub async fn device_uid_exists(
     db: &DatabaseConnection,
     device_uid: i32,
@@ -192,33 +179,3 @@ pub async fn device_uid_exists(
     let count = query.count(db).await?;
     Ok(count > 0)
 }
-```
-
-### 9.2 Update Module Export
-
-**`src/db/mod.rs`**
-
-```rust
-pub mod connection;
-pub mod department;
-pub mod employee;
-
-pub use connection::{connect, test_connection, get_version, get_table_counts, TableCounts};
-```
-
----
-
-## Deliverables
-
-- [x] list_all function
-- [x] list_by_department function
-- [x] list_active function
-- [x] search function
-- [x] get_by_id function
-- [x] get_by_device_uid function
-- [x] get_by_code function
-- [x] create function
-- [x] update function
-- [x] delete function
-- [x] code_exists validation
-- [x] device_uid_exists validation
