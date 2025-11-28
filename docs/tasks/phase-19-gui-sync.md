@@ -234,12 +234,12 @@ impl App {
 
 ## Deliverables
 
-- [ ] Device info display
-- [ ] Test connection button
-- [ ] Sync progress bar with animation
-- [ ] Sync Now button
-- [ ] Statistics display
-- [ ] Scrollable log viewer
-- [ ] Clear log button
-- [ ] test_device_connection() method
-- [ ] load_attendance() method
+- [x] Device info display
+- [x] Test connection button
+- [x] Sync progress bar with animation
+- [x] Sync Now button
+- [x] Statistics display
+- [x] Scrollable log viewer
+- [x] Clear log button
+- [x] test_device_connection() method
+- [x] load_attendance() method

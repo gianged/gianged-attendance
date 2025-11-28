@@ -1,6 +1,6 @@
 //! Shared UI components.
 
-use eframe::egui::{self, Color32, Response, RichText, Sense, StrokeKind, Ui};
+use eframe::egui::{self, Color32, CornerRadius, Response, RichText, Sense, StrokeKind, Ui, Vec2};
 
 /// Render a clickable dashboard card with dynamic size.
 ///
@@ -74,4 +74,79 @@ pub fn panel_header(ui: &mut Ui, title: &str) {
     ui.add_space(10.0);
     ui.separator();
     ui.add_space(20.0);
+}
+
+/// Button style constants.
+pub mod button_style {
+    use super::*;
+
+    pub const CORNER_RADIUS: u8 = 6;
+    pub const MIN_SIZE: Vec2 = Vec2::new(80.0, 32.0);
+    pub const SMALL_MIN_SIZE: Vec2 = Vec2::new(60.0, 26.0);
+
+    pub const PRIMARY_COLOR: Color32 = Color32::from_rgb(70, 130, 200);
+    pub const DANGER_COLOR: Color32 = Color32::from_rgb(200, 80, 80);
+}
+
+/// Render a styled button with rounded corners and padding.
+pub fn styled_button(ui: &mut Ui, text: &str) -> Response {
+    let button = egui::Button::new(RichText::new(text).size(14.0))
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a styled button with icon and text.
+pub fn styled_button_with_icon(ui: &mut Ui, icon: &str, text: &str) -> Response {
+    let label = format!("{} {}", icon, text);
+    let button = egui::Button::new(RichText::new(label).size(14.0))
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a primary action button (e.g., Save, Add).
+pub fn primary_button(ui: &mut Ui, text: &str) -> Response {
+    let button = egui::Button::new(RichText::new(text).size(14.0).color(Color32::WHITE))
+        .fill(button_style::PRIMARY_COLOR)
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a primary button with icon.
+pub fn primary_button_with_icon(ui: &mut Ui, icon: &str, text: &str) -> Response {
+    let label = format!("{} {}", icon, text);
+    let button = egui::Button::new(RichText::new(label).size(14.0).color(Color32::WHITE))
+        .fill(button_style::PRIMARY_COLOR)
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a danger button (e.g., Delete).
+pub fn danger_button(ui: &mut Ui, text: &str) -> Response {
+    let button = egui::Button::new(RichText::new(text).size(14.0).color(Color32::WHITE))
+        .fill(button_style::DANGER_COLOR)
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a small action button with icon and text (for table actions).
+pub fn action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
+    let label = format!("{} {}", icon, text);
+    let button = egui::Button::new(RichText::new(label).size(12.0))
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::SMALL_MIN_SIZE);
+    ui.add(button)
+}
+
+/// Render a small danger action button with icon and text (for delete actions).
+pub fn danger_action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
+    let label = format!("{} {}", icon, text);
+    let button = egui::Button::new(RichText::new(label).size(12.0).color(button_style::DANGER_COLOR))
+        .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
+        .min_size(button_style::SMALL_MIN_SIZE);
+    ui.add(button)
 }

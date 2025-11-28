@@ -8,7 +8,7 @@ use gianged_attendance as app;
 
 use app::config::{AppConfig, ConfigLoadResult};
 use app::db;
-use app::ui::{MainApp, SetupApp, SetupWizard};
+use app::ui::{App, SetupApp, SetupWizard};
 
 /// Desktop mini ERP for staff and attendance management.
 #[derive(Parser)]
@@ -131,7 +131,7 @@ fn run_main_app(config: AppConfig) -> eframe::Result<()> {
             cc.egui_ctx.set_fonts(fonts);
 
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(MainApp::new(pool, config, rt)))
+            Ok(Box::new(App::new(pool, config, rt)))
         }),
     )
 }

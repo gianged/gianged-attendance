@@ -10,10 +10,7 @@ use sea_orm::*;
 ///
 /// Uses ON CONFLICT DO NOTHING to skip duplicates based on (device_uid, check_time).
 /// Returns the count of successfully inserted records.
-pub async fn insert_batch(
-    db: &DatabaseConnection,
-    records: &[CreateAttendanceLog],
-) -> Result<usize, DbErr> {
+pub async fn insert_batch(db: &DatabaseConnection, records: &[CreateAttendanceLog]) -> Result<usize, DbErr> {
     let mut inserted = 0;
 
     for record in records {
@@ -28,12 +25,9 @@ pub async fn insert_batch(
 
         let result = AttendanceLogs::insert(model)
             .on_conflict(
-                OnConflict::columns([
-                    attendance_logs::Column::DeviceUid,
-                    attendance_logs::Column::CheckTime,
-                ])
-                .do_nothing()
-                .to_owned(),
+                OnConflict::columns([attendance_logs::Column::DeviceUid, attendance_logs::Column::CheckTime])
+                    .do_nothing()
+                    .to_owned(),
             )
             .exec(db)
             .await;
@@ -185,10 +179,7 @@ pub async fn get_today_count(db: &DatabaseConnection) -> Result<u64, DbErr> {
     let result: Option<i64> = AttendanceLogs::find()
         .filter(attendance_logs::Column::CheckTime.between(start, end))
         .select_only()
-        .column_as(
-            Expr::col(attendance_logs::Column::DeviceUid).count_distinct(),
-            "count",
-        )
+        .column_as(Expr::col(attendance_logs::Column::DeviceUid).count_distinct(), "count")
         .into_tuple()
         .one(db)
         .await?;

@@ -29,6 +29,23 @@ pub struct DailyAttendance {
     pub work_hours: Option<f64>,
 }
 
+/// Attendance detail from v_attendance_details view.
+/// Contains individual check records with employee info.
+#[derive(Debug, Clone, Serialize, Deserialize, FromQueryResult)]
+pub struct AttendanceDetail {
+    pub id: i64,
+    pub device_uid: i32,
+    pub employee_id: Option<i32>,
+    pub employee_code: Option<String>,
+    pub full_name: Option<String>,
+    pub department_id: Option<i32>,
+    pub department_name: Option<String>,
+    pub check_time: DateTime<Utc>,
+    pub verify_type: i32,
+    pub verify_type_name: String,
+    pub source: String,
+}
+
 /// Verify type constants matching database CHECK constraint.
 pub mod verify_type {
     /// Fingerprint verification (device code: 2).

@@ -318,13 +318,13 @@ impl App {
 
 ## Deliverables
 
-- [ ] Panel enum for navigation
-- [ ] UiMessage enum for async communication
-- [ ] App struct with all state
-- [ ] DepartmentForm struct
-- [ ] EmployeeForm struct
-- [ ] ReportFilter struct
-- [ ] LogEntry and LogLevel
-- [ ] DeleteTarget enum
-- [ ] App::new() constructor
-- [ ] Logging helper methods
+- [x] Panel enum for navigation
+- [x] UiMessage enum for async communication
+- [x] App struct with all state
+- [x] DepartmentForm struct
+- [x] EmployeeForm struct
+- [x] ReportFilter struct
+- [x] LogEntry and LogLevel
+- [x] DeleteTarget enum
+- [x] App::new() constructor
+- [x] Logging helper methods

@@ -394,10 +394,9 @@ pub mod settings;
 
 ## Deliverables
 
-- [ ] main.rs with eframe setup
-- [ ] App implements eframe::App
-- [ ] Message processing loop
-- [ ] Modal dialogs (error, success, confirm)
-- [ ] Sidebar navigation
-- [ ] Status bar
-- [ ] UI module structure
+- [x] main.rs with eframe setup
+- [x] App implements eframe::App
+- [x] Message processing loop
+- [x] Modal dialogs (error, success, confirm)
+- [x] Status bar
+- [x] UI module structure

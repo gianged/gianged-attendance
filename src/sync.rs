@@ -4,10 +4,10 @@ use crate::client::ZkClient;
 use crate::config::AppConfig;
 use crate::db::attendance;
 use crate::error::Result;
-use crate::ui::main_app::SyncProgress;
+use crate::ui::app::SyncProgress;
 use chrono::{Local, TimeDelta, Utc};
 use sea_orm::DatabaseConnection;
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 
 /// Result of a sync operation.
 #[derive(Debug, Clone)]
@@ -142,7 +142,7 @@ impl SyncService {
 }
 
 /// Run sync in background and report progress via channel.
-pub async fn run_sync_background(config: AppConfig, db: DatabaseConnection, tx: mpsc::Sender<SyncProgress>) {
+pub async fn run_sync_background(config: AppConfig, db: DatabaseConnection, tx: mpsc::UnboundedSender<SyncProgress>) {
     let service = SyncService::new(config, db);
 
     let result = service

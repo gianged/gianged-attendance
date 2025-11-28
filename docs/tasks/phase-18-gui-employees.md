@@ -459,13 +459,13 @@ impl App {
 
 ## Deliverables
 
-- [ ] Employees table view with filtering
-- [ ] Search by code/name
-- [ ] Filter by department dropdown
-- [ ] Add/Edit form dialog
-- [ ] Form validation
-- [ ] load_employees() async method
-- [ ] create_employee() async method
-- [ ] update_employee() async method
-- [ ] delete_employee() async method
-- [ ] export_employees() method
+- [x] Employees table view with filtering
+- [x] Search by code/name
+- [x] Filter by department dropdown
+- [x] Add/Edit form dialog
+- [x] Form validation
+- [x] load_employees() async method
+- [x] create_employee() async method
+- [x] update_employee() async method
+- [x] delete_employee() async method
+- [x] export_employees() method

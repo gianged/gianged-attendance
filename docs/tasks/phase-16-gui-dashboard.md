@@ -197,10 +197,10 @@ impl App {
 
 ## Deliverables
 
-- [ ] Dashboard layout
-- [ ] Stat cards (employees, departments, today's attendance)
-- [ ] Quick actions section
-- [ ] Recent activity log
-- [ ] Sync status display
-- [ ] start_sync() method
-- [ ] export_today_report() method
+- [x] Dashboard layout
+- [x] Stat cards (employees, departments, today's attendance)
+- [x] Quick actions section
+- [x] Recent activity log
+- [x] Sync status display
+- [x] start_sync() method
+- [x] export_today_report() method

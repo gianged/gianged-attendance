@@ -13,10 +13,7 @@ pub async fn list_all(db: &DatabaseConnection) -> Result<Vec<employees::Model>, 
 }
 
 /// List employees by department.
-pub async fn list_by_department(
-    db: &DatabaseConnection,
-    department_id: i32,
-) -> Result<Vec<employees::Model>, DbErr> {
+pub async fn list_by_department(db: &DatabaseConnection, department_id: i32) -> Result<Vec<employees::Model>, DbErr> {
     Employees::find()
         .filter(employees::Column::DepartmentId.eq(department_id))
         .order_by_asc(employees::Column::EmployeeCode)
@@ -34,10 +31,7 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<employees::Model
 }
 
 /// Search employees by code or name.
-pub async fn search(
-    db: &DatabaseConnection,
-    query: &str,
-) -> Result<Vec<employees::Model>, DbErr> {
+pub async fn search(db: &DatabaseConnection, query: &str) -> Result<Vec<employees::Model>, DbErr> {
     let pattern = format!("%{}%", query);
     Employees::find()
         .filter(
@@ -51,18 +45,12 @@ pub async fn search(
 }
 
 /// Get employee by ID.
-pub async fn get_by_id(
-    db: &DatabaseConnection,
-    id: i32,
-) -> Result<Option<employees::Model>, DbErr> {
+pub async fn get_by_id(db: &DatabaseConnection, id: i32) -> Result<Option<employees::Model>, DbErr> {
     Employees::find_by_id(id).one(db).await
 }
 
 /// Get employee by device UID.
-pub async fn get_by_device_uid(
-    db: &DatabaseConnection,
-    device_uid: i32,
-) -> Result<Option<employees::Model>, DbErr> {
+pub async fn get_by_device_uid(db: &DatabaseConnection, device_uid: i32) -> Result<Option<employees::Model>, DbErr> {
     Employees::find()
         .filter(employees::Column::DeviceUid.eq(device_uid))
         .one(db)
@@ -70,10 +58,7 @@ pub async fn get_by_device_uid(
 }
 
 /// Get employee by employee code.
-pub async fn get_by_code(
-    db: &DatabaseConnection,
-    code: &str,
-) -> Result<Option<employees::Model>, DbErr> {
+pub async fn get_by_code(db: &DatabaseConnection, code: &str) -> Result<Option<employees::Model>, DbErr> {
     Employees::find()
         .filter(employees::Column::EmployeeCode.eq(code))
         .one(db)
@@ -81,10 +66,7 @@ pub async fn get_by_code(
 }
 
 /// Create a new employee.
-pub async fn create(
-    db: &DatabaseConnection,
-    data: CreateEmployee,
-) -> Result<employees::Model, DbErr> {
+pub async fn create(db: &DatabaseConnection, data: CreateEmployee) -> Result<employees::Model, DbErr> {
     let model = employees::ActiveModel {
         employee_code: Set(data.employee_code),
         full_name: Set(data.full_name),
@@ -99,11 +81,7 @@ pub async fn create(
 }
 
 /// Update an existing employee.
-pub async fn update(
-    db: &DatabaseConnection,
-    id: i32,
-    data: UpdateEmployee,
-) -> Result<Option<employees::Model>, DbErr> {
+pub async fn update(db: &DatabaseConnection, id: i32, data: UpdateEmployee) -> Result<Option<employees::Model>, DbErr> {
     let existing = Employees::find_by_id(id).one(db).await?;
 
     match existing {
@@ -149,11 +127,7 @@ pub async fn delete(db: &DatabaseConnection, id: i32) -> Result<bool, DbErr> {
 }
 
 /// Check if employee code exists (for validation).
-pub async fn code_exists(
-    db: &DatabaseConnection,
-    code: &str,
-    exclude_id: Option<i32>,
-) -> Result<bool, DbErr> {
+pub async fn code_exists(db: &DatabaseConnection, code: &str, exclude_id: Option<i32>) -> Result<bool, DbErr> {
     let mut query = Employees::find().filter(employees::Column::EmployeeCode.eq(code));
 
     if let Some(id) = exclude_id {

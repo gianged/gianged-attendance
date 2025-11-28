@@ -318,12 +318,12 @@ impl App {
 
 ## Deliverables
 
-- [ ] Departments table view
-- [ ] Add/Edit form dialog
-- [ ] Parent department dropdown
-- [ ] Form validation
-- [ ] load_departments() async method
-- [ ] create_department() async method
-- [ ] update_department() async method
-- [ ] delete_department() async method
-- [ ] Delete confirmation
+- [x] Departments table view
+- [x] Add/Edit form dialog
+- [x] Parent department dropdown
+- [x] Form validation
+- [x] load_departments() async method
+- [x] create_department() async method
+- [x] update_department() async method
+- [x] delete_department() async method
+- [x] Delete confirmation
