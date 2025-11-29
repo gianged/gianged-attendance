@@ -195,7 +195,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> Option<Panel> {
                         ui.label(RichText::new(message).color(Color32::from_rgb(100, 150, 230)))
                     }
                     SyncState::Completed { records_synced } => ui.label(
-                        RichText::new(format!("Completed ({} records)", records_synced))
+                        RichText::new(format!("Completed ({records_synced} records)"))
                             .color(Color32::from_rgb(100, 200, 100)),
                     ),
                     SyncState::Error(e) => ui.label(RichText::new(e).color(Color32::from_rgb(230, 100, 100))),

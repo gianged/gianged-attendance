@@ -825,12 +825,12 @@ impl App {
 
         match crate::export::export_employees_to_excel(&self.employees, &self.departments, &path) {
             Ok(()) => {
-                self.success_message = Some(format!("Exported to: {}", filename));
-                self.log_success(format!("Exported employees: {}", filename));
+                self.success_message = Some(format!("Exported to: {filename}"));
+                self.log_success(format!("Exported employees: {filename}"));
             }
             Err(e) => {
-                self.error_message = Some(format!("Export failed: {}", e));
-                self.log_error(format!("Export failed: {}", e));
+                self.error_message = Some(format!("Export failed: {e}"));
+                self.log_error(format!("Export failed: {e}"));
             }
         }
     }
@@ -892,8 +892,8 @@ impl App {
                 self.log_success("Settings saved");
             }
             Err(e) => {
-                self.error_message = Some(format!("Failed to save settings: {}", e));
-                self.log_error(format!("Failed to save settings: {}", e));
+                self.error_message = Some(format!("Failed to save settings: {e}"));
+                self.log_error(format!("Failed to save settings: {e}"));
             }
         }
     }
@@ -994,12 +994,12 @@ impl App {
 
         match crate::export::export_attendance_summary_to_excel(&data, &path) {
             Ok(()) => {
-                self.success_message = Some(format!("Exported to: {}", filename));
-                self.log_success(format!("Exported today's report: {}", filename));
+                self.success_message = Some(format!("Exported to: {filename}"));
+                self.log_success(format!("Exported today's report: {filename}"));
             }
             Err(e) => {
-                self.error_message = Some(format!("Export failed: {}", e));
-                self.log_error(format!("Export failed: {}", e));
+                self.error_message = Some(format!("Export failed: {e}"));
+                self.log_error(format!("Export failed: {e}"));
             }
         }
     }
@@ -1054,7 +1054,7 @@ impl App {
                     self.log_error(e);
                 }
                 UiMessage::DepartmentSaved(dept) => {
-                    self.success_message = Some(format!("Department '{}' saved", dept.name));
+                    self.success_message = Some(format!("Department '{name}' saved", name = dept.name));
                     self.department_form.reset();
                     self.load_departments();
                 }
@@ -1064,7 +1064,7 @@ impl App {
                     self.log_success("Department deleted");
                 }
                 UiMessage::EmployeeSaved(emp) => {
-                    self.success_message = Some(format!("Employee '{}' saved", emp.full_name));
+                    self.success_message = Some(format!("Employee '{name}' saved", name = emp.full_name));
                     self.employee_form.reset();
                     self.load_employees();
                 }
@@ -1079,8 +1079,8 @@ impl App {
                 }
                 UiMessage::ExportCompleted(path) => {
                     self.is_loading = false;
-                    self.success_message = Some(format!("Exported to {}", path));
-                    self.log_success(format!("Export completed: {}", path));
+                    self.success_message = Some(format!("Exported to {path}"));
+                    self.log_success(format!("Export completed: {path}"));
                 }
                 UiMessage::ExportFailed(e) => {
                     self.is_loading = false;
@@ -1235,7 +1235,7 @@ impl App {
                     if matches!(self.device_status, DeviceStatus::Connecting) {
                         ui.spinner();
                     }
-                    ui.colored_label(color, format!("Device: {}", text));
+                    ui.colored_label(color, format!("Device: {text}"));
 
                     // Progress bar (right side)
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1295,7 +1295,7 @@ impl App {
                                 ui.colored_label(colors::SUCCESS, "Connection successful!");
                             }
                             Err(e) => {
-                                ui.colored_label(colors::ERROR, format!("Failed: {}", e));
+                                ui.colored_label(colors::ERROR, format!("Failed: {e}"));
                             }
                         }
                     }
@@ -1360,8 +1360,8 @@ impl App {
             && let Some(ref target) = self.delete_target.clone()
         {
             let (title, message) = match target {
-                DeleteTarget::Department(_, name) => ("Delete Department", format!("Delete department '{}'?", name)),
-                DeleteTarget::Employee(_, name) => ("Delete Employee", format!("Delete employee '{}'?", name)),
+                DeleteTarget::Department(_, name) => ("Delete Department", format!("Delete department '{name}'?")),
+                DeleteTarget::Employee(_, name) => ("Delete Employee", format!("Delete employee '{name}'?")),
             };
 
             egui::Window::new(title)
@@ -1391,11 +1391,11 @@ impl App {
         if let Some(target) = self.delete_target.take() {
             match target {
                 DeleteTarget::Department(id, name) => {
-                    self.log_info(format!("Deleting department: {}", name));
+                    self.log_info(format!("Deleting department: {name}"));
                     self.delete_department(id);
                 }
                 DeleteTarget::Employee(id, name) => {
-                    self.log_info(format!("Deleting employee: {}", name));
+                    self.log_info(format!("Deleting employee: {name}"));
                     self.delete_employee(id);
                 }
             }

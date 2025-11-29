@@ -40,7 +40,7 @@ impl ZkClient {
     ///
     /// Verifies login success by checking the response body for error indicators.
     pub async fn login(&mut self, username: &str, password: &str) -> Result<()> {
-        let url = format!("{}/csl/check", self.base_url);
+        let url = format!("{base}/csl/check", base = self.base_url);
 
         let response = self
             .client
@@ -91,7 +91,7 @@ impl ZkClient {
             return Err(AppError::DeviceLoginFailed);
         }
 
-        let url = format!("{}/form/Download", self.base_url);
+        let url = format!("{base}/form/Download", base = self.base_url);
 
         // Build form data with repeated uid parameters
         let mut form_data: Vec<(&str, String)> = vec![
@@ -158,20 +158,20 @@ impl ZkClient {
     /// Parse a local timestamp string and convert to UTC.
     fn parse_local_timestamp(&self, timestamp_str: &str) -> Result<DateTime<Utc>> {
         let naive_dt = NaiveDateTime::parse_from_str(timestamp_str, "%Y-%m-%d %H:%M:%S")
-            .map_err(|e| AppError::parse(format!("Invalid timestamp '{}': {}", timestamp_str, e)))?;
+            .map_err(|e| AppError::parse(format!("Invalid timestamp '{timestamp_str}': {e}")))?;
 
         // Device returns local time, convert to UTC
         let local_dt = Local
             .from_local_datetime(&naive_dt)
             .single()
-            .ok_or_else(|| AppError::parse(format!("Ambiguous local time: {}", timestamp_str)))?;
+            .ok_or_else(|| AppError::parse(format!("Ambiguous local time: {timestamp_str}")))?;
 
         Ok(local_dt.with_timezone(&Utc))
     }
 
     /// Test connection to the device.
     pub async fn test_connection(&self) -> Result<bool> {
-        let url = format!("{}/", self.base_url);
+        let url = format!("{base}/", base = self.base_url);
         let response = self.client.get(&url).send().await?;
         Ok(response.status().is_success())
     }

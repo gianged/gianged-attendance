@@ -102,7 +102,7 @@ impl SyncService {
         let records = client.download_attendance(start_date, end_date, &user_ids).await?;
 
         let downloaded = records.len();
-        on_progress(0.6, &format!("Downloaded {} records", downloaded));
+        on_progress(0.6, &format!("Downloaded {downloaded} records"));
 
         on_progress(0.7, "Inserting into database...");
         let inserted = attendance::insert_batch(&self.db, &records).await?;
@@ -112,7 +112,7 @@ impl SyncService {
 
         let duration_secs = start.elapsed().as_secs_f64();
 
-        on_progress(1.0, &format!("Done! Inserted {} new records", inserted));
+        on_progress(1.0, &format!("Done! Inserted {inserted} new records"));
 
         Ok(SyncResult {
             downloaded,

@@ -43,7 +43,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
     ui.add_space(15.0);
 
     // Department count
-    ui.label(format!("{} departments", app.departments.len()));
+    ui.label(format!("{count} departments", count = app.departments.len()));
 
     ui.add_space(10.0);
 

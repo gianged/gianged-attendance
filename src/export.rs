@@ -159,7 +159,7 @@ pub fn show_save_dialog(default_name: &str) -> Option<PathBuf> {
 /// Generate default filename for export.
 pub fn generate_export_filename(prefix: &str) -> String {
     let now = Local::now();
-    format!("{}_{}.xlsx", prefix, now.format("%Y%m%d_%H%M%S"))
+    format!("{prefix}_{ts}.xlsx", ts = now.format("%Y%m%d_%H%M%S"))
 }
 
 /// Export employees to Excel file.

@@ -98,7 +98,7 @@ pub fn styled_button(ui: &mut Ui, text: &str) -> Response {
 
 /// Render a styled button with icon and text.
 pub fn styled_button_with_icon(ui: &mut Ui, icon: &str, text: &str) -> Response {
-    let label = format!("{} {}", icon, text);
+    let label = format!("{icon} {text}");
     let button = egui::Button::new(RichText::new(label).size(14.0))
         .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
         .min_size(button_style::MIN_SIZE);
@@ -116,7 +116,7 @@ pub fn primary_button(ui: &mut Ui, text: &str) -> Response {
 
 /// Render a primary button with icon.
 pub fn primary_button_with_icon(ui: &mut Ui, icon: &str, text: &str) -> Response {
-    let label = format!("{} {}", icon, text);
+    let label = format!("{icon} {text}");
     let button = egui::Button::new(RichText::new(label).size(14.0).color(Color32::WHITE))
         .fill(button_style::PRIMARY_COLOR)
         .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
@@ -135,7 +135,7 @@ pub fn danger_button(ui: &mut Ui, text: &str) -> Response {
 
 /// Render a small action button with icon and text (for table actions).
 pub fn action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
-    let label = format!("{} {}", icon, text);
+    let label = format!("{icon} {text}");
     let button = egui::Button::new(RichText::new(label).size(12.0))
         .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
         .min_size(button_style::SMALL_MIN_SIZE);
@@ -144,7 +144,7 @@ pub fn action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
 
 /// Render a small danger action button with icon and text (for delete actions).
 pub fn danger_action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
-    let label = format!("{} {}", icon, text);
+    let label = format!("{icon} {text}");
     let button = egui::Button::new(RichText::new(label).size(12.0).color(button_style::DANGER_COLOR))
         .corner_radius(CornerRadius::same(button_style::CORNER_RADIUS))
         .min_size(button_style::SMALL_MIN_SIZE);

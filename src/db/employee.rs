@@ -32,7 +32,7 @@ pub async fn list_active(db: &DatabaseConnection) -> Result<Vec<employees::Model
 
 /// Search employees by code or name.
 pub async fn search(db: &DatabaseConnection, query: &str) -> Result<Vec<employees::Model>, DbErr> {
-    let pattern = format!("%{}%", query);
+    let pattern = format!("%{query}%");
     Employees::find()
         .filter(
             Condition::any()

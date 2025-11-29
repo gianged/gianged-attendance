@@ -181,9 +181,9 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
         let end_record = (start_record - 1 + page_count as u64).min(total);
 
         if total > 0 {
-            ui.label(format!("Showing {}-{} of {} records", start_record, end_record, total));
+            ui.label(format!("Showing {start_record}-{end_record} of {total} records"));
         } else {
-            ui.label(format!("{} records", page_count));
+            ui.label(format!("{page_count} records"));
         }
 
         // Pagination controls
@@ -209,7 +209,11 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             app.prev_page();
         }
 
-        ui.label(format!("Page {} of {}", current_page + 1, total_pages.max(1)));
+        ui.label(format!(
+            "Page {page} of {total}",
+            page = current_page + 1,
+            total = total_pages.max(1)
+        ));
 
         // Next page
         if ui

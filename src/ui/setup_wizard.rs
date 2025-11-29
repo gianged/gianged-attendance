@@ -289,7 +289,7 @@ impl eframe::App for SetupApp {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
                 Err(e) => {
-                    self.initial_error = Some(format!("Failed to save config: {}", e));
+                    self.initial_error = Some(format!("Failed to save config: {e}"));
                     self.wizard.completed = false;
                 }
             }
@@ -363,7 +363,7 @@ fn show_database_step(ui: &mut egui::Ui, wizard: &mut SetupWizard) -> bool {
                 ui.colored_label(Color32::from_rgb(100, 200, 100), "Connection successful!");
             }
             ConnectionTestState::Failed(e) => {
-                ui.colored_label(Color32::from_rgb(255, 100, 100), format!("Failed: {}", e));
+                ui.colored_label(Color32::from_rgb(255, 100, 100), format!("Failed: {e}"));
             }
         }
     });
@@ -403,7 +403,7 @@ fn show_device_step(ui: &mut egui::Ui, wizard: &mut SetupWizard) {
         ConnectionTestState::Failed(e) => {
             ui.colored_label(
                 Color32::from_rgb(255, 200, 100),
-                format!("Device not reachable: {} (you can still continue)", e),
+                format!("Device not reachable: {e} (you can still continue)"),
             );
         }
         _ => {}
@@ -477,7 +477,7 @@ fn show_confirmation_step(ui: &mut egui::Ui, wizard: &SetupWizard) {
         if wizard.config.device.url.is_empty() {
             ui.label("  Not configured");
         } else {
-            ui.label(format!("  {}", wizard.config.device.url));
+            ui.label(format!("  {url}", url = &wizard.config.device.url));
         }
     });
 
@@ -485,18 +485,24 @@ fn show_confirmation_step(ui: &mut egui::Ui, wizard: &SetupWizard) {
 
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.heading("Sync Settings");
-        ui.label(format!("  Days: {}", wizard.config.sync.days));
-        ui.label(format!("  Max user ID: {}", wizard.config.sync.max_user_id));
+        ui.label(format!("  Days: {days}", days = wizard.config.sync.days));
         ui.label(format!(
-            "  Auto-sync: {}",
-            if wizard.config.sync.auto_enabled {
+            "  Max user ID: {max_id}",
+            max_id = wizard.config.sync.max_user_id
+        ));
+        ui.label(format!(
+            "  Auto-sync: {status}",
+            status = if wizard.config.sync.auto_enabled {
                 "Enabled"
             } else {
                 "Disabled"
             }
         ));
         if wizard.config.sync.auto_enabled {
-            ui.label(format!("  Interval: {} minutes", wizard.config.sync.interval_minutes));
+            ui.label(format!(
+                "  Interval: {mins} minutes",
+                mins = wizard.config.sync.interval_minutes
+            ));
         }
     });
 

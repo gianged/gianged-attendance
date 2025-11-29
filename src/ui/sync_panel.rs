@@ -108,16 +108,16 @@ fn show_sync_control(app: &mut App, ui: &mut Ui) {
                 SyncState::InProgress { progress, message } => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label(format!("Syncing: {}", message));
+                        ui.label(format!("Syncing: {message}"));
                     });
                     ui.add_space(10.0);
                     ui.add(ProgressBar::new(*progress).show_percentage().animate(true));
                 }
                 SyncState::Completed { records_synced } => {
-                    ui.colored_label(colors::SUCCESS, format!("Completed: {} records synced", records_synced));
+                    ui.colored_label(colors::SUCCESS, format!("Completed: {records_synced} records synced"));
                 }
                 SyncState::Error(err) => {
-                    ui.colored_label(colors::ERROR, format!("Error: {}", err));
+                    ui.colored_label(colors::ERROR, format!("Error: {err}"));
                 }
             }
 
@@ -133,7 +133,7 @@ fn show_sync_control(app: &mut App, ui: &mut Ui) {
                 if ui
                     .add_enabled(
                         can_sync,
-                        egui::Button::new(RichText::new(format!("{} Sync Now", ARROWS_CLOCKWISE))),
+                        egui::Button::new(RichText::new(format!("{ARROWS_CLOCKWISE} Sync Now"))),
                     )
                     .clicked()
                 {
