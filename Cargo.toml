@@ -38,13 +38,13 @@ thiserror = "2.0.17"
 anyhow = "1.0.100"
 
 # Logging
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tracing = "0.1.43"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
 # GUI
 eframe = "0.33.2"
 egui_extras = { version = "0.33.2", features = ["datepicker"] }
-egui-phosphor = { version = "0.11", features = ["regular"] }
+egui-phosphor = { version = "0.11.0", features = ["regular"] }
 
 # Excel export
 rust_xlsxwriter = "0.92.2"
@@ -56,7 +56,7 @@ rfd = "0.16.0"
 directories = "6.0.0"
 
 # CLI argument parsing
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4.5.53", features = ["derive"] }
 
 [build-dependencies]
 winres = "0.1.12"
