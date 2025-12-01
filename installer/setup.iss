@@ -2,7 +2,7 @@
 ; Creates Windows installer with database configuration
 
 #define AppName "Gianged Attendance"
-#define AppVersion "0.1.0"
+#define AppVersion "1.0.0"
 #define AppPublisher "Gianged"
 #define AppExeName "gianged-attendance.exe"
 
