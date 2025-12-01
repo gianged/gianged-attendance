@@ -46,33 +46,51 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
     // Date range filters
     ui.horizontal(|ui| {
         ui.label("From:");
-        let mut start_str = app.report_filter.start_date.format("%Y-%m-%d").to_string();
-        if ui
-            .add(
-                egui::TextEdit::singleline(&mut start_str)
-                    .desired_width(100.0)
-                    .hint_text("YYYY-MM-DD"),
-            )
-            .changed()
-            && let Ok(date) = chrono::NaiveDate::parse_from_str(&start_str, "%Y-%m-%d")
+        // Check if current input is valid
+        let start_valid = chrono::NaiveDate::parse_from_str(&app.report_filter.start_date_input, "%Y-%m-%d").is_ok();
+        let start_response = ui.add(
+            egui::TextEdit::singleline(&mut app.report_filter.start_date_input)
+                .desired_width(100.0)
+                .hint_text("YYYY-MM-DD")
+                .text_color(if start_valid {
+                    ui.visuals().text_color()
+                } else {
+                    egui::Color32::from_rgb(220, 50, 50)
+                }),
+        );
+        if start_response.changed()
+            && let Ok(date) = chrono::NaiveDate::parse_from_str(&app.report_filter.start_date_input, "%Y-%m-%d")
         {
             app.report_filter.start_date = date;
+        }
+        // On focus lost, reset to valid date if invalid
+        if start_response.lost_focus() && !start_valid {
+            app.report_filter.start_date_input = app.report_filter.start_date.format("%Y-%m-%d").to_string();
         }
 
         ui.add_space(10.0);
 
         ui.label("To:");
-        let mut end_str = app.report_filter.end_date.format("%Y-%m-%d").to_string();
-        if ui
-            .add(
-                egui::TextEdit::singleline(&mut end_str)
-                    .desired_width(100.0)
-                    .hint_text("YYYY-MM-DD"),
-            )
-            .changed()
-            && let Ok(date) = chrono::NaiveDate::parse_from_str(&end_str, "%Y-%m-%d")
+        // Check if current input is valid
+        let end_valid = chrono::NaiveDate::parse_from_str(&app.report_filter.end_date_input, "%Y-%m-%d").is_ok();
+        let end_response = ui.add(
+            egui::TextEdit::singleline(&mut app.report_filter.end_date_input)
+                .desired_width(100.0)
+                .hint_text("YYYY-MM-DD")
+                .text_color(if end_valid {
+                    ui.visuals().text_color()
+                } else {
+                    egui::Color32::from_rgb(220, 50, 50)
+                }),
+        );
+        if end_response.changed()
+            && let Ok(date) = chrono::NaiveDate::parse_from_str(&app.report_filter.end_date_input, "%Y-%m-%d")
         {
             app.report_filter.end_date = date;
+        }
+        // On focus lost, reset to valid date if invalid
+        if end_response.lost_focus() && !end_valid {
+            app.report_filter.end_date_input = app.report_filter.end_date.format("%Y-%m-%d").to_string();
         }
 
         ui.add_space(20.0);
@@ -82,6 +100,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             let today = Local::now().date_naive();
             app.report_filter.start_date = today;
             app.report_filter.end_date = today;
+            app.report_filter.sync_date_inputs();
             app.report_filter.reset_pagination();
         }
 
@@ -90,6 +109,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             let weekday = today.weekday().num_days_from_monday();
             app.report_filter.start_date = today - chrono::Duration::days(weekday as i64);
             app.report_filter.end_date = today;
+            app.report_filter.sync_date_inputs();
             app.report_filter.reset_pagination();
         }
 
@@ -97,6 +117,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             let today = Local::now().date_naive();
             app.report_filter.start_date = today.with_day(1).unwrap_or(today);
             app.report_filter.end_date = today;
+            app.report_filter.sync_date_inputs();
             app.report_filter.reset_pagination();
         }
 
@@ -104,6 +125,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             let today = Local::now().date_naive();
             app.report_filter.start_date = today - chrono::Duration::days(30);
             app.report_filter.end_date = today;
+            app.report_filter.sync_date_inputs();
             app.report_filter.reset_pagination();
         }
     });

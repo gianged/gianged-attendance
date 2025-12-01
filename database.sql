@@ -270,7 +270,7 @@ SELECT
     MIN(al.check_time) AS first_check,
     MAX(al.check_time) AS last_check,
     COUNT(*) AS check_count,
-    EXTRACT(EPOCH FROM (MAX(al.check_time) - MIN(al.check_time))) / 3600.0 AS work_hours
+    (EXTRACT(EPOCH FROM (MAX(al.check_time) - MIN(al.check_time))) / 3600.0)::float8 AS work_hours
 FROM app.attendance_logs al
 JOIN app.employees e ON al.scanner_uid = e.scanner_uid
 LEFT JOIN app.departments d ON e.department_id = d.id

@@ -199,6 +199,10 @@ pub struct ReportFilter {
     pub report_type: ReportType,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
+    /// Temporary input string for start date (allows partial typing)
+    pub start_date_input: String,
+    /// Temporary input string for end date (allows partial typing)
+    pub end_date_input: String,
     pub department_id: Option<i32>,
     pub employee_id: Option<i32>,
     // Pagination state
@@ -209,10 +213,13 @@ pub struct ReportFilter {
 impl Default for ReportFilter {
     fn default() -> Self {
         let today = Local::now().date_naive();
+        let start_date = today - chrono::Duration::days(30);
         Self {
             report_type: ReportType::default(),
-            start_date: today - chrono::Duration::days(30),
+            start_date,
             end_date: today,
+            start_date_input: start_date.format("%Y-%m-%d").to_string(),
+            end_date_input: today.format("%Y-%m-%d").to_string(),
             department_id: None,
             employee_id: None,
             current_page: 0,
@@ -235,6 +242,12 @@ impl ReportFilter {
     pub fn reset_pagination(&mut self) {
         self.current_page = 0;
         self.total_records = 0;
+    }
+
+    /// Sync input strings from date values (call after programmatic date changes).
+    pub fn sync_date_inputs(&mut self) {
+        self.start_date_input = self.start_date.format("%Y-%m-%d").to_string();
+        self.end_date_input = self.end_date.format("%Y-%m-%d").to_string();
     }
 }
 
