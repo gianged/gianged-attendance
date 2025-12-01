@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/gianged/gianged-attendance/compare/v1.1.3...v1.1.4) (2025-12-01)
+
+
+### Bug Fixes
+
+* add .gitattributes for consistent CRLF on Windows ([993f5bd](https://github.com/gianged/gianged-attendance/commit/993f5bd20bec929345d08d1f541596a70a405ff4))
+
 ## [1.1.3](https://github.com/gianged/gianged-attendance/compare/v1.1.2...v1.1.3) (2025-12-01)
 
 
