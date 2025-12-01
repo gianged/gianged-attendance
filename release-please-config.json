@@ -8,11 +8,6 @@
           "type": "toml",
           "path": "Cargo.toml",
           "jsonpath": "$.package.version"
-        },
-        {
-          "type": "generic",
-          "path": "installer/setup.iss",
-          "glob": false
         }
       ],
       "changelog-sections": [

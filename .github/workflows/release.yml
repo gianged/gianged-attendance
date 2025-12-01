@@ -51,6 +51,13 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Update version in setup.iss
+        shell: pwsh
+        run: |
+          $content = Get-Content installer/setup.iss -Raw
+          $content = $content -replace '#define AppVersion "[^"]*"', '#define AppVersion "${{ needs.release-please.outputs.version }}"'
+          Set-Content installer/setup.iss $content
+
       - name: Build installer with Inno Setup
         shell: pwsh
         run: |
