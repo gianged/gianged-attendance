@@ -45,9 +45,13 @@ jobs:
       - name: Update version in setup.iss
         shell: pwsh
         run: |
-          $content = Get-Content installer/setup.iss -Raw -Encoding UTF8
+          $path = "installer/setup.iss"
+          # Read file and normalize line endings to CRLF for Windows/Inno Setup
+          $content = [System.IO.File]::ReadAllText($path)
+          $content = $content -replace "`r`n", "`n"  # Normalize to LF first
+          $content = $content -replace "`n", "`r`n"  # Then convert to CRLF
           $content = $content -replace '#define AppVersion "[^"]*"', '#define AppVersion "${{ needs.release-please.outputs.version }}"'
-          Set-Content installer/setup.iss $content -Encoding UTF8 -NoNewline
+          [System.IO.File]::WriteAllText($path, $content)
 
       - name: Build installer with Inno Setup
         shell: pwsh
