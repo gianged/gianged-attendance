@@ -8,110 +8,31 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  analyze:
-    name: Analyze Commits
+  release-please:
+    name: Release Please
     runs-on: ubuntu-latest
     outputs:
-      bump_type: ${{ steps.analyze.outputs.bump_type }}
-      new_version: ${{ steps.version.outputs.new_version }}
-      should_release: ${{ steps.analyze.outputs.should_release }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}.${{ steps.release.outputs.patch }}
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: googleapis/release-please-action@v4
+        id: release
         with:
-          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get current version
-        id: current
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Analyze commits for version bump
-        id: analyze
-        run: |
-          # Get the last tag or use initial commit if no tags exist
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
-
-          # Get all commit messages since last tag
-          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
-
-          echo "Commits since last tag:"
-          echo "$COMMITS"
-
-          BUMP_TYPE="none"
-
-          # Check for breaking changes (major bump)
-          if echo "$COMMITS" | grep -iE "^(feat|fix|refactor|perf)!:" > /dev/null; then
-            BUMP_TYPE="major"
-          elif echo "$COMMITS" | grep -i "BREAKING CHANGE" > /dev/null; then
-            BUMP_TYPE="major"
-          # Check for features (minor bump)
-          elif echo "$COMMITS" | grep -iE "^feat(\(.+\))?:" > /dev/null; then
-            BUMP_TYPE="minor"
-          # Check for fixes (patch bump)
-          elif echo "$COMMITS" | grep -iE "^fix(\(.+\))?:" > /dev/null; then
-            BUMP_TYPE="patch"
-          fi
-
-          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
-
-          if [ "$BUMP_TYPE" != "none" ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          fi
-
-          echo "Detected bump type: $BUMP_TYPE"
-
-      - name: Calculate new version
-        id: version
-        if: steps.analyze.outputs.should_release == 'true'
-        run: |
-          CURRENT="${{ steps.current.outputs.version }}"
-          BUMP_TYPE="${{ steps.analyze.outputs.bump_type }}"
-
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-
-          case $BUMP_TYPE in
-            major)
-              NEW_VERSION="$((MAJOR + 1)).0.0"
-              ;;
-            minor)
-              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
-              ;;
-            patch)
-              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-              ;;
-          esac
-
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Version bump: $CURRENT -> $NEW_VERSION"
-
-  release:
-    name: Build & Release
-    needs: analyze
-    if: needs.analyze.outputs.should_release == 'true'
+  build:
+    name: Build & Upload
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update version in Cargo.toml
-        shell: pwsh
-        run: |
-          $content = Get-Content Cargo.toml -Raw
-          $content = $content -replace 'version = "[0-9]+\.[0-9]+\.[0-9]+"', 'version = "${{ needs.analyze.outputs.new_version }}"'
-          Set-Content Cargo.toml $content
-
-      - name: Update version in setup.iss
-        shell: pwsh
-        run: |
-          $content = Get-Content installer/setup.iss -Raw
-          $content = $content -replace '#define AppVersion "[0-9]+\.[0-9]+\.[0-9]+"', '#define AppVersion "${{ needs.analyze.outputs.new_version }}"'
-          Set-Content installer/setup.iss $content
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -135,26 +56,9 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/setup.iss
 
-      - name: Commit version bump
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml installer/setup.iss
-          git commit -m "chore: bump version to ${{ needs.analyze.outputs.new_version }}"
-          git push
-
-      - name: Create tag
-        shell: pwsh
-        run: |
-          git tag "v${{ needs.analyze.outputs.new_version }}"
-          git push origin "v${{ needs.analyze.outputs.new_version }}"
-
-      - name: Create GitHub Release
+      - name: Upload installer to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.analyze.outputs.new_version }}
-          name: v${{ needs.analyze.outputs.new_version }}
-          generate_release_notes: true
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
-            target/installer/Gianged-Attendance-Setup-${{ needs.analyze.outputs.new_version }}.exe
+            target/installer/Gianged-Attendance-Setup-${{ needs.release-please.outputs.version }}.exe
