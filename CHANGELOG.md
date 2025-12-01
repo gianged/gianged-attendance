@@ -1,0 +1,27 @@
+# Changelog
+
+## [1.1.0](https://github.com/gianged/gianged-attendance/compare/v1.0.0...v1.1.0) (2025-12-01)
+
+
+### Features
+
+* add CI/CD pipeline with semantic versioning ([ca074ac](https://github.com/gianged/gianged-attendance/commit/ca074ac13ace79ce8f888a8eb90320a28c7efa49))
+* Add logging initialization and cleanup functionality; include new dependencies for tracing ([090dd9a](https://github.com/gianged/gianged-attendance/commit/090dd9a34da2acdbb551c859d7ef508e9aec96d5))
+* Add main application UI and implement dashboard, department, staff, and sync panels ([15989c2](https://github.com/gianged/gianged-attendance/commit/15989c272b4bf0f73d9b37e8a270a786f425878f))
+* Enhance attendance management with detailed reporting and settings ([44df719](https://github.com/gianged/gianged-attendance/commit/44df71951fde08e34fae0b432e41fced90d9f515))
+* Enhance dashboard with additional reports card and update navigation layout ([1ac61f7](https://github.com/gianged/gianged-attendance/commit/1ac61f7bc22a7f8633cae53038286b579de22ea7))
+* Enhance date input handling in reports panel with validation and synchronization ([f45c697](https://github.com/gianged/gianged-attendance/commit/f45c69711d07dbdb2340429ce6668cd70f072264))
+* Implement attendance and employee repositories with CRUD operations and sync service ([f6a11ec](https://github.com/gianged/gianged-attendance/commit/f6a11ec16a95fa2ae346f6c3d7e7eb9c6625ef58))
+* Remove unused .gitkeep file and add note icon ([48ccfde](https://github.com/gianged/gianged-attendance/commit/48ccfdee449b4fd4ed95b3da6d532b107a70c6d9))
+* Rename device_uid to scanner_uid across the application for consistency ([93e506b](https://github.com/gianged/gianged-attendance/commit/93e506bc2bf6c5e941907586ae008c664867f46e))
+
+
+### Bug Fixes
+
+* use explicit jsonpath for Cargo.toml version updates ([23dc1cc](https://github.com/gianged/gianged-attendance/commit/23dc1cc48fe90f8795b1a941e5c834acc041ea39))
+
+
+### Refactoring
+
+* Rename project from GiangEd to Gianged Attendance ([17c2a2b](https://github.com/gianged/gianged-attendance/commit/17c2a2b49d89533f879f676ce10638f3c568f773))
+* Update string formatting to use interpolation for improved readability ([5ea1040](https://github.com/gianged/gianged-attendance/commit/5ea1040e66e29aee3d114e7cd288c428abe23286))
