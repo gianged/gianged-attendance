@@ -46,12 +46,17 @@ jobs:
         shell: pwsh
         run: |
           $path = "installer/setup.iss"
-          # Read file and normalize line endings to CRLF for Windows/Inno Setup
-          $content = [System.IO.File]::ReadAllText($path)
-          $content = $content -replace "`r`n", "`n"  # Normalize to LF first
-          $content = $content -replace "`n", "`r`n"  # Then convert to CRLF
-          $content = $content -replace '#define AppVersion "[^"]*"', '#define AppVersion "${{ needs.release-please.outputs.version }}"'
-          [System.IO.File]::WriteAllText($path, $content)
+          $version = "${{ needs.release-please.outputs.version }}"
+          Write-Host "Updating setup.iss to version: $version"
+
+          # Simple replacement - .gitattributes ensures CRLF line endings
+          $content = Get-Content $path -Raw
+          $content = $content -replace '#define AppVersion "[^"]*"', "#define AppVersion `"$version`""
+          Set-Content $path $content -NoNewline
+
+          # Debug output
+          Write-Host "=== Version line ==="
+          Select-String -Path $path -Pattern "AppVersion"
 
       - name: Build installer with Inno Setup
         shell: pwsh
