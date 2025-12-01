@@ -1,6 +1,6 @@
 //! Gianged Attendance - Desktop mini ERP for staff and attendance management.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use eframe::egui;
@@ -9,6 +9,77 @@ use gianged_attendance as app;
 use app::config::{AppConfig, ConfigLoadResult};
 use app::db;
 use app::ui::{App, SetupApp, SetupWizard};
+
+/// Get the directory containing the executable.
+fn get_exe_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Initialize logging based on build type.
+/// - Debug: console output at INFO level
+/// - Release: file output at WARN level
+fn init_logging(exe_dir: &Path) {
+    let log_dir = exe_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).ok();
+
+    #[cfg(debug_assertions)]
+    {
+        // Dev mode: console only
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()),
+            )
+            .init();
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        // Release mode: file only, WARN level
+        let file_appender = tracing_appender::rolling::daily(&log_dir, "app");
+        tracing_subscriber::fmt()
+            .with_writer(file_appender)
+            .with_ansi(false)
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::WARN.into()),
+            )
+            .init();
+    }
+}
+
+/// Remove log files older than the specified number of days.
+fn cleanup_old_logs(log_dir: &Path, keep_days: i64) {
+    let cutoff = chrono::Local::now() - chrono::Duration::days(keep_days);
+
+    let Ok(entries) = std::fs::read_dir(log_dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        // Only delete files starting with "app." (our log prefix)
+        if !path
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("app."))
+        {
+            continue;
+        }
+
+        let Ok(metadata) = path.metadata() else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+
+        let modified: chrono::DateTime<chrono::Local> = modified.into();
+        if modified < cutoff {
+            std::fs::remove_file(&path).ok();
+        }
+    }
+}
 
 /// Desktop mini ERP for staff and attendance management.
 #[derive(Parser)]
@@ -29,11 +100,13 @@ enum LaunchMode {
 
 fn main() -> eframe::Result<()> {
     let cli = Cli::parse();
+    let exe_dir = get_exe_dir();
 
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
-        .init();
+    init_logging(&exe_dir);
+
+    // Cleanup logs older than 10 days
+    cleanup_old_logs(&exe_dir.join("logs"), 10);
 
     tracing::info!("Gianged Attendance starting...");
 
