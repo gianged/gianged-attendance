@@ -613,13 +613,22 @@ impl App {
     /// Export summary report to Excel.
     /// Fetches all data for the date range (not just paginated view).
     pub fn export_summary_report(&mut self) {
+        if self.is_loading {
+            return;
+        }
+
+        // Show save dialog first (blocking, on main thread)
+        let default_name = crate::export::generate_export_filename("attendance_summary");
+        let Some(path) = crate::export::show_save_dialog(&default_name) else {
+            return; // User cancelled
+        };
+
         self.is_loading = true;
         self.loading_message = "Exporting summary report...".to_string();
 
         let pool = self.pool.clone();
         let tx = self.tx.clone();
         let filter = self.report_filter.clone();
-        let filename = crate::export::generate_export_filename("attendance_summary");
 
         self.rt.spawn(async move {
             // Fetch all data for export (not paginated)
@@ -640,10 +649,9 @@ impl App {
                         return;
                     }
 
-                    let path = std::path::PathBuf::from(&filename);
                     match crate::export::export_attendance_summary_to_excel(&data, &path) {
                         Ok(()) => {
-                            let _ = tx.send(UiMessage::ExportCompleted(filename));
+                            let _ = tx.send(UiMessage::ExportCompleted(path.display().to_string()));
                         }
                         Err(e) => {
                             let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
@@ -660,13 +668,22 @@ impl App {
     /// Export detail report to Excel.
     /// Fetches all data for the date range (not just paginated view).
     pub fn export_detail_report(&mut self) {
+        if self.is_loading {
+            return;
+        }
+
+        // Show save dialog first (blocking, on main thread)
+        let default_name = crate::export::generate_export_filename("attendance_detail");
+        let Some(path) = crate::export::show_save_dialog(&default_name) else {
+            return; // User cancelled
+        };
+
         self.is_loading = true;
         self.loading_message = "Exporting detail report...".to_string();
 
         let pool = self.pool.clone();
         let tx = self.tx.clone();
         let filter = self.report_filter.clone();
-        let filename = crate::export::generate_export_filename("attendance_detail");
 
         self.rt.spawn(async move {
             // Fetch all data for export (not paginated)
@@ -687,10 +704,9 @@ impl App {
                         return;
                     }
 
-                    let path = std::path::PathBuf::from(&filename);
                     match crate::export::export_attendance_detail_to_excel(&data, &path) {
                         Ok(()) => {
-                            let _ = tx.send(UiMessage::ExportCompleted(filename));
+                            let _ = tx.send(UiMessage::ExportCompleted(path.display().to_string()));
                         }
                         Err(e) => {
                             let _ = tx.send(UiMessage::ExportFailed(e.to_string()));
@@ -820,13 +836,16 @@ impl App {
 
     /// Export employees to Excel.
     pub fn export_employees(&mut self) {
-        let filename = crate::export::generate_export_filename("employees");
-        let path = std::path::PathBuf::from(&filename);
+        // Show save dialog first
+        let default_name = crate::export::generate_export_filename("employees");
+        let Some(path) = crate::export::show_save_dialog(&default_name) else {
+            return; // User cancelled
+        };
 
         match crate::export::export_employees_to_excel(&self.employees, &self.departments, &path) {
             Ok(()) => {
-                self.success_message = Some(format!("Exported to: {filename}"));
-                self.log_success(format!("Exported employees: {filename}"));
+                self.success_message = Some(format!("Exported to: {}", path.display()));
+                self.log_success(format!("Exported employees: {}", path.display()));
             }
             Err(e) => {
                 self.error_message = Some(format!("Export failed: {e}"));
@@ -975,33 +994,47 @@ impl App {
     }
 
     /// Export today's attendance report to Excel.
+    /// Fetches data directly from the database (not from cached in-memory data).
     pub fn export_today_report(&mut self) {
-        let today = chrono::Local::now().date_naive();
-        let data: Vec<_> = self
-            .attendance
-            .iter()
-            .filter(|a| a.work_date == today)
-            .cloned()
-            .collect();
-
-        if data.is_empty() {
-            self.error_message = Some("No attendance data for today".to_string());
+        if self.is_loading {
             return;
         }
 
-        let filename = crate::export::generate_export_filename("attendance_today");
-        let path = std::path::PathBuf::from(&filename);
+        // Show save dialog first (blocking, on main thread)
+        let default_name = crate::export::generate_export_filename("attendance_today");
+        let Some(path) = crate::export::show_save_dialog(&default_name) else {
+            return; // User cancelled
+        };
 
-        match crate::export::export_attendance_summary_to_excel(&data, &path) {
-            Ok(()) => {
-                self.success_message = Some(format!("Exported to: {filename}"));
-                self.log_success(format!("Exported today's report: {filename}"));
+        self.is_loading = true;
+        self.loading_message = "Exporting today's report...".to_string();
+
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+        let today = chrono::Local::now().date_naive();
+
+        self.rt.spawn(async move {
+            match db::attendance::get_daily_summary(&pool, today, today).await {
+                Ok(data) => {
+                    if data.is_empty() {
+                        let _ = tx.send(UiMessage::ExportFailed("No attendance data for today".to_string()));
+                        return;
+                    }
+
+                    match crate::export::export_attendance_summary_to_excel(&data, &path) {
+                        Ok(()) => {
+                            let _ = tx.send(UiMessage::ExportCompleted(path.display().to_string()));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(UiMessage::ExportFailed(format!("Export failed: {e}")));
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::ExportFailed(format!("Database error: {e}")));
+                }
             }
-            Err(e) => {
-                self.error_message = Some(format!("Export failed: {e}"));
-                self.log_error(format!("Export failed: {e}"));
-            }
-        }
+        });
     }
 
     /// Poll async operation results.

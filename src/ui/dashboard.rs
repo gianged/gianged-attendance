@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use chrono::Local;
 use eframe::egui::{self, Color32, CornerRadius, Margin, RichText, ScrollArea, Ui};
-use egui_phosphor::regular::{ARROWS_CLOCKWISE, BUILDINGS, USERS};
+use egui_phosphor::regular::{ARROWS_CLOCKWISE, BUILDINGS, CHART_BAR, USERS};
 
 use super::app::{App, LogLevel, Panel, SyncState};
 use super::components::dashboard_card;
@@ -55,7 +55,7 @@ pub fn show(app: &mut App, ui: &mut Ui) -> Option<Panel> {
 
         // Navigation cards row
         let available = ui.available_width();
-        let num_cards = 3.0;
+        let num_cards = 4.0;
         let spacing = 30.0;
         let total_spacing = spacing * (num_cards - 1.0);
         let card_width = ((available - total_spacing) / num_cards).clamp(150.0, 250.0);
@@ -81,6 +81,12 @@ pub fn show(app: &mut App, ui: &mut Ui) -> Option<Panel> {
 
             if dashboard_card(ui, "Device Sync", "Sync attendance data", ARROWS_CLOCKWISE, card_size).clicked() {
                 next_panel = Some(Panel::Sync);
+            }
+
+            ui.add_space(spacing);
+
+            if dashboard_card(ui, "Reports", "Attendance reports & export", CHART_BAR, card_size).clicked() {
+                next_panel = Some(Panel::Reports);
             }
         });
 
