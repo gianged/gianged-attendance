@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5](https://github.com/gianged/gianged-attendance/compare/v1.1.4...v1.1.5) (2025-12-01)
+
+
+### Bug Fixes
+
+* update version to 1.1.4 in Cargo.lock and clean up Inno Setup script ([0977029](https://github.com/gianged/gianged-attendance/commit/0977029d09b74436cf16e2f6e76b911cea06bc71))
+
 ## [1.1.4](https://github.com/gianged/gianged-attendance/compare/v1.1.3...v1.1.4) (2025-12-01)
 
 
