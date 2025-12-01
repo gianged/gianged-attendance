@@ -115,20 +115,20 @@ begin
       'url = "http://192.168.90.11"' + #13#10 +
       'username = "administrator"' + #13#10 +
       'password = ""' + #13#10 +
-      #13#10 +
+      '' + #13#10 +
       '[database]' + #13#10 +
       'host = "' + DatabasePage.Values[0] + '"' + #13#10 +
       'port = ' + DatabasePage.Values[1] + #13#10 +
       'name = "' + DatabasePage.Values[2] + '"' + #13#10 +
       'username = "' + DatabasePage.Values[3] + '"' + #13#10 +
       'password = "' + DatabasePage.Values[4] + '"' + #13#10 +
-      #13#10 +
+      '' + #13#10 +
       '[sync]' + #13#10 +
       'days = 30' + #13#10 +
       'max_user_id = 300' + #13#10 +
       'auto_enabled = false' + #13#10 +
       'interval_minutes = 60' + #13#10 +
-      #13#10 +
+      '' + #13#10 +
       '[ui]' + #13#10 +
       'start_minimized = false' + #13#10 +
       'minimize_to_tray = true' + #13#10;
