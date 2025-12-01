@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/gianged/gianged-attendance/compare/v1.1.1...v1.1.2) (2025-12-01)
+
+
+### Bug Fixes
+
+* use Swatinem/rust-cache for better caching ([aced709](https://github.com/gianged/gianged-attendance/commit/aced709c33374537b10f6e3ffdc8929f7018915c))
+
 ## [1.1.1](https://github.com/gianged/gianged-attendance/compare/v1.1.0...v1.1.1) (2025-12-01)
 
 
