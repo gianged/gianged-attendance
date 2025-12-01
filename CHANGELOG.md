@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/gianged/gianged-attendance/compare/v1.1.2...v1.1.3) (2025-12-01)
+
+
+### Bug Fixes
+
+* normalize line endings to CRLF for Inno Setup on Windows ([f60e5a9](https://github.com/gianged/gianged-attendance/commit/f60e5a93e347d020359bc7afe4a18c6b96e50478))
+
 ## [1.1.2](https://github.com/gianged/gianged-attendance/compare/v1.1.1...v1.1.2) (2025-12-01)
 
 
