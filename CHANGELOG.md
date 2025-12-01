@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/gianged/gianged-attendance/compare/v1.1.0...v1.1.1) (2025-12-01)
+
+
+### Bug Fixes
+
+* update gianged-attendance version to 1.1.0 in Cargo.lock ([3e60b2b](https://github.com/gianged/gianged-attendance/commit/3e60b2bc50fcb3a60dee211a48178b037386359c))
+* update setup.iss version in build workflow instead of ([b60ff33](https://github.com/gianged/gianged-attendance/commit/b60ff33e837f8c69a730b55bfe913d8796b6f17c))
+
 ## [1.1.0](https://github.com/gianged/gianged-attendance/compare/v1.0.0...v1.1.0) (2025-12-01)
 
 
