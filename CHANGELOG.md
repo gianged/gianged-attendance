@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.0](https://github.com/gianged/gianged-attendance/compare/v1.1.5...v1.2.0) (2025-12-08)
+
+
+### Features
+
+* **logging:** Enhance logging for TCP connection and data transfer operations ([ad8a17c](https://github.com/gianged/gianged-attendance/commit/ad8a17c111a2ae8b988a159e9d6278646cc6978f))
+* **tcp-client:** Implement ZKTeco TCP binary protocol client for attendance data retrieval ([4d1adac](https://github.com/gianged/gianged-attendance/commit/4d1adacae7ff26a63bd5c194c53d5b308bf36222))
+* **zk-tcp-client:** Add connection diagnosis functionality with detailed status reporting ([c6aa0c7](https://github.com/gianged/gianged-attendance/commit/c6aa0c7a7db5aa14248915447b86517f4c974ea5))
+
+
+### Bug Fixes
+
+* **app:** Update device connection testing to use SyncService for TCP protocol ([b47e756](https://github.com/gianged/gianged-attendance/commit/b47e75603dba842d9db00e2f5808ac1c2bf8928c))
+* **client:** Update device disable command to handle potential lack of response ([60884ed](https://github.com/gianged/gianged-attendance/commit/60884ed3747168ebbd7f598697ef743471cd9cec))
+* **tcp-client:** Refactor data reading logic to handle streaming from device and improve error handling ([f445b6e](https://github.com/gianged/gianged-attendance/commit/f445b6e37ee9d275dd7cba90f4eac61522378de1))
+* **zk-tcp-client:** Enhance data handling and error management in attendance data retrieval ([18fcf52](https://github.com/gianged/gianged-attendance/commit/18fcf52e708c0db19581ee55120a87573adf047d))
+* **zk-tcp-client:** Improve disconnect logic to handle CMD_EXIT command more gracefully ([4d76ecc](https://github.com/gianged/gianged-attendance/commit/4d76ecc398c5750bee26bd28ea55cd84f824e632))
+* **zk-tcp-client:** Refactor data transfer commands and improve attendance data reading logic ([4d193d5](https://github.com/gianged/gianged-attendance/commit/4d193d535c9945b5569d0184df3b2b6c1db9ca6a))
+* **zk-tcp-client:** Refactor device command handling to use direct packet writing ([ddef068](https://github.com/gianged/gianged-attendance/commit/ddef06821860796187c41ed333c613023754e6de))
+
 ## [1.1.5](https://github.com/gianged/gianged-attendance/compare/v1.1.4...v1.1.5) (2025-12-01)
 
 
