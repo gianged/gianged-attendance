@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use tracing::{error, info};
+use tracing::error;
 
 /// Write packet to stream with timeout.
 pub(crate) async fn write_packet(stream: &mut TcpStream, packet: &[u8], timeout_duration: Duration) -> Result<()> {

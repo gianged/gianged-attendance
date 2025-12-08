@@ -79,14 +79,16 @@ impl ZkTcpClient {
 
     /// Disconnect from the device.
     pub async fn disconnect(&mut self) -> Result<()> {
-        if self.stream.is_some() {
+        if let Some(ref mut stream) = self.stream {
             info!("Disconnecting from device");
-            // Send exit command, ignore errors
-            let _ = self.send_command(CMD_EXIT, &[]).await;
-            self.stream = None;
-            self.session_id = 0;
-            self.reply_id = 0;
+            // Send CMD_EXIT but don't wait for response (device may not respond)
+            let packet = build_packet(CMD_EXIT, &[], self.session_id, &mut self.reply_id);
+            // Fire and forget - ignore write errors
+            let _ = write_packet(stream, &packet, Duration::from_secs(2)).await;
         }
+        self.stream = None;
+        self.session_id = 0;
+        self.reply_id = 0;
         Ok(())
     }
 
