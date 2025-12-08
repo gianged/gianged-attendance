@@ -14,4 +14,4 @@ mod types;
 mod tests;
 
 // Re-export public API
-pub use client::ZkTcpClient;
+pub use client::{ConnectionDiagnosis, ZkTcpClient};

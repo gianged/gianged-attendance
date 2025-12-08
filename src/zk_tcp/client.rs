@@ -198,6 +198,88 @@ impl ZkTcpClient {
         read_response(stream, timeout_duration).await
     }
 
+    /// Diagnose connection issues. Returns detailed status info.
+    pub async fn diagnose_connection(&mut self) -> ConnectionDiagnosis {
+        let addr = format!("{}:{}", self.ip, self.port);
+        let start = std::time::Instant::now();
+
+        // Step 1: Try TCP connect
+        let tcp_result = timeout(self.timeout_duration, TcpStream::connect(&addr)).await;
+
+        let tcp_connect_ms = start.elapsed().as_millis() as u64;
+
+        match tcp_result {
+            Err(_) => {
+                return ConnectionDiagnosis {
+                    tcp_reachable: false,
+                    tcp_connect_ms,
+                    tcp_error: Some("TCP connection timeout".to_string()),
+                    protocol_ok: false,
+                    protocol_error: None,
+                    session_id: None,
+                    device_response_code: None,
+                };
+            }
+            Ok(Err(e)) => {
+                return ConnectionDiagnosis {
+                    tcp_reachable: false,
+                    tcp_connect_ms,
+                    tcp_error: Some(format!("TCP error: {e}")),
+                    protocol_ok: false,
+                    protocol_error: None,
+                    session_id: None,
+                    device_response_code: None,
+                };
+            }
+            Ok(Ok(stream)) => {
+                self.stream = Some(stream);
+            }
+        }
+
+        // Step 2: Try CMD_CONNECT
+        let protocol_start = std::time::Instant::now();
+        let cmd_result = self.send_command_full(CMD_CONNECT, &[]).await;
+        let _protocol_ms = protocol_start.elapsed().as_millis() as u64;
+
+        match cmd_result {
+            Err(e) => {
+                self.stream = None;
+                ConnectionDiagnosis {
+                    tcp_reachable: true,
+                    tcp_connect_ms,
+                    tcp_error: None,
+                    protocol_ok: false,
+                    protocol_error: Some(format!("{e}")),
+                    session_id: None,
+                    device_response_code: None,
+                }
+            }
+            Ok(response) => {
+                let session_id = if response.data.len() >= 2 {
+                    Some(u16::from_le_bytes([response.data[0], response.data[1]]))
+                } else {
+                    None
+                };
+
+                // Clean disconnect
+                let _ = self.send_command(CMD_EXIT, &[]).await;
+                self.stream = None;
+                self.session_id = 0;
+                self.reply_id = 0;
+
+                ConnectionDiagnosis {
+                    tcp_reachable: true,
+                    tcp_connect_ms,
+                    tcp_error: None,
+                    protocol_ok: true,
+                    protocol_error: None,
+                    session_id,
+                    device_response_code: Some(response.code),
+                }
+            }
+        }
+    }
+
     /// Get reply_id for testing purposes.
     #[cfg(test)]
     pub(crate) fn reply_id(&self) -> u16 {
@@ -208,5 +290,51 @@ impl ZkTcpClient {
     #[cfg(test)]
     pub(crate) fn build_packet_for_test(&mut self, command: u16, data: &[u8]) -> Vec<u8> {
         build_packet(command, data, self.session_id, &mut self.reply_id)
+    }
+}
+
+/// Diagnostic information about connection attempt.
+#[derive(Debug, Clone)]
+pub struct ConnectionDiagnosis {
+    /// Whether TCP port was reachable
+    pub tcp_reachable: bool,
+    /// Time to establish TCP connection (ms)
+    pub tcp_connect_ms: u64,
+    /// TCP-level error if any
+    pub tcp_error: Option<String>,
+    /// Whether ZKTeco protocol handshake succeeded
+    pub protocol_ok: bool,
+    /// Protocol-level error if any
+    pub protocol_error: Option<String>,
+    /// Session ID from device (if connected)
+    pub session_id: Option<u16>,
+    /// Response code from CMD_CONNECT
+    pub device_response_code: Option<u16>,
+}
+
+impl std::fmt::Display for ConnectionDiagnosis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "=== Connection Diagnosis ===")?;
+        writeln!(f, "TCP Reachable: {}", self.tcp_reachable)?;
+        writeln!(f, "TCP Connect Time: {}ms", self.tcp_connect_ms)?;
+
+        if let Some(ref err) = self.tcp_error {
+            writeln!(f, "TCP Error: {err}")?;
+        }
+
+        if self.tcp_reachable {
+            writeln!(f, "Protocol OK: {}", self.protocol_ok)?;
+            if let Some(ref err) = self.protocol_error {
+                writeln!(f, "Protocol Error: {err}")?;
+            }
+            if let Some(code) = self.device_response_code {
+                writeln!(f, "Device Response Code: {code}")?;
+            }
+            if let Some(sid) = self.session_id {
+                writeln!(f, "Session ID: {sid}")?;
+            }
+        }
+
+        Ok(())
     }
 }
