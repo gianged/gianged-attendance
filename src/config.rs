@@ -46,6 +46,20 @@ pub struct DeviceConfig {
     pub url: String,
     pub username: String,
     pub password: String,
+    /// TCP port for binary protocol (default: 4370).
+    #[serde(default = "default_tcp_port")]
+    pub tcp_port: u16,
+    /// TCP operation timeout in seconds (default: 30).
+    #[serde(default = "default_tcp_timeout_secs")]
+    pub tcp_timeout_secs: u64,
+}
+
+fn default_tcp_port() -> u16 {
+    4370
+}
+
+fn default_tcp_timeout_secs() -> u64 {
+    30
 }
 
 /// PostgreSQL database connection settings.
@@ -134,6 +148,14 @@ impl AppConfig {
                 "Sync interval must be at least 1 minute".to_string(),
             ));
         }
+        if self.device.tcp_port == 0 {
+            return Err(ConfigError::Validation("TCP port must be greater than 0".to_string()));
+        }
+        if self.device.tcp_timeout_secs < 5 {
+            return Err(ConfigError::Validation(
+                "TCP timeout must be at least 5 seconds".to_string(),
+            ));
+        }
         Ok(())
     }
 
@@ -161,6 +183,8 @@ impl Default for DeviceConfig {
             url: "http://192.168.90.11".to_string(),
             username: "administrator".to_string(),
             password: String::new(),
+            tcp_port: default_tcp_port(),
+            tcp_timeout_secs: default_tcp_timeout_secs(),
         }
     }
 }

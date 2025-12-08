@@ -44,6 +44,22 @@ pub enum AppError {
     /// Record not found
     #[error("Not found: {0}")]
     NotFound(String),
+
+    /// TCP connection failed
+    #[error("TCP connection failed: {0}")]
+    TcpConnectionFailed(String),
+
+    /// TCP protocol error (bad checksum, invalid response)
+    #[error("TCP protocol error: {0}")]
+    TcpProtocolError(String),
+
+    /// Device is busy (locked by another client)
+    #[error("Device is busy")]
+    TcpDeviceBusy,
+
+    /// TCP data parsing error
+    #[error("TCP invalid data: {0}")]
+    TcpInvalidData(String),
 }
 
 /// Result type alias for AppError

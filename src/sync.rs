@@ -1,11 +1,11 @@
 //! Sync service orchestration.
 
-use crate::client::ZkClient;
 use crate::config::AppConfig;
 use crate::db::attendance;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::ui::app::SyncProgress;
-use chrono::{Local, TimeDelta, Utc};
+use crate::zk_tcp_client::ZkTcpClient;
+use chrono::Local;
 use sea_orm::DatabaseConnection;
 use tokio::sync::mpsc;
 
@@ -40,25 +40,43 @@ impl SyncService {
         Self { config, db }
     }
 
-    /// Perform a sync operation.
+    /// Extract IP address from device URL.
+    fn extract_ip_from_url(url: &str) -> Result<String> {
+        // Remove protocol prefix
+        let without_protocol = url.trim_start_matches("http://").trim_start_matches("https://");
+
+        // Extract host (before port or path)
+        let ip = without_protocol
+            .split(':')
+            .next()
+            .unwrap_or(without_protocol)
+            .split('/')
+            .next()
+            .unwrap_or(without_protocol);
+
+        if ip.is_empty() {
+            return Err(AppError::config("Invalid device URL: cannot extract IP"));
+        }
+
+        Ok(ip.to_string())
+    }
+
+    /// Perform a sync operation using TCP protocol.
     pub async fn sync(&self) -> Result<SyncResult> {
         let start = std::time::Instant::now();
 
-        // Create client and login
-        let mut client = ZkClient::new(&self.config.device.url);
-        client
-            .login(&self.config.device.username, &self.config.device.password)
-            .await?;
+        // Extract IP from URL
+        let ip = Self::extract_ip_from_url(&self.config.device.url)?;
 
-        // Calculate date range
-        let end_date = Utc::now().date_naive();
-        let start_date = end_date - TimeDelta::days(i64::from(self.config.sync.days));
-
-        // Build user ID list
-        let user_ids: Vec<i32> = (1..=self.config.sync.max_user_id).collect();
+        // Create TCP client and connect
+        let mut client = ZkTcpClient::new(&ip, self.config.device.tcp_port, self.config.device.tcp_timeout_secs);
+        client.connect().await?;
 
         // Download attendance data
-        let records = client.download_attendance(start_date, end_date, &user_ids).await?;
+        let records = client.download_attendance().await?;
+
+        // Disconnect
+        client.disconnect().await?;
 
         let downloaded = records.len();
 
@@ -76,30 +94,26 @@ impl SyncService {
         })
     }
 
-    /// Perform sync with progress callback.
+    /// Perform sync with progress callback using TCP protocol.
     pub async fn sync_with_progress<F>(&self, mut on_progress: F) -> Result<SyncResult>
     where
         F: FnMut(f32, &str),
     {
         let start = std::time::Instant::now();
 
-        on_progress(0.0, "Connecting to device...");
+        on_progress(0.0, "Connecting to device (TCP)...");
 
-        let mut client = ZkClient::new(&self.config.device.url);
+        // Extract IP from URL
+        let ip = Self::extract_ip_from_url(&self.config.device.url)?;
 
-        on_progress(0.1, "Logging in...");
-        client
-            .login(&self.config.device.username, &self.config.device.password)
-            .await?;
+        // Create TCP client
+        let mut client = ZkTcpClient::new(&ip, self.config.device.tcp_port, self.config.device.tcp_timeout_secs);
 
-        on_progress(0.2, "Preparing download...");
-
-        let end_date = Utc::now().date_naive();
-        let start_date = end_date - TimeDelta::days(i64::from(self.config.sync.days));
-        let user_ids: Vec<i32> = (1..=self.config.sync.max_user_id).collect();
+        on_progress(0.1, "Establishing TCP session...");
+        client.connect().await?;
 
         on_progress(0.3, "Downloading attendance data...");
-        let records = client.download_attendance(start_date, end_date, &user_ids).await?;
+        let records = client.download_attendance().await?;
 
         let downloaded = records.len();
         on_progress(0.6, &format!("Downloaded {downloaded} records"));
@@ -108,7 +122,8 @@ impl SyncService {
         let inserted = attendance::insert_batch(&self.db, &records).await?;
         let skipped = downloaded.saturating_sub(inserted);
 
-        on_progress(0.9, "Finalizing...");
+        on_progress(0.9, "Closing connection...");
+        client.disconnect().await?;
 
         let duration_secs = start.elapsed().as_secs_f64();
 
@@ -122,22 +137,30 @@ impl SyncService {
         })
     }
 
-    /// Test device connection.
+    /// Test device TCP connection.
     pub async fn test_device_connection(&self) -> Result<bool> {
-        let client = ZkClient::new(&self.config.device.url);
-        client.test_connection().await
-    }
+        let ip = Self::extract_ip_from_url(&self.config.device.url)?;
+        let mut client = ZkTcpClient::new(&ip, self.config.device.tcp_port, self.config.device.tcp_timeout_secs);
 
-    /// Test device login.
-    pub async fn test_device_login(&self) -> Result<bool> {
-        let mut client = ZkClient::new(&self.config.device.url);
-        match client
-            .login(&self.config.device.username, &self.config.device.password)
-            .await
-        {
-            Ok(()) => Ok(true),
+        match client.connect().await {
+            Ok(()) => {
+                let _ = client.disconnect().await;
+                Ok(true)
+            }
             Err(_) => Ok(false),
         }
+    }
+
+    /// Get attendance record count from device via TCP.
+    pub async fn get_device_record_count(&self) -> Result<u32> {
+        let ip = Self::extract_ip_from_url(&self.config.device.url)?;
+        let mut client = ZkTcpClient::new(&ip, self.config.device.tcp_port, self.config.device.tcp_timeout_secs);
+
+        client.connect().await?;
+        let count = client.get_attendance_count().await?;
+        client.disconnect().await?;
+
+        Ok(count)
     }
 }
 
@@ -164,5 +187,40 @@ pub async fn run_sync_background(config: AppConfig, db: DatabaseConnection, tx: 
         Err(e) => {
             let _ = tx.send(SyncProgress::Error(e.to_string()));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_ip_from_url_http() {
+        let ip = SyncService::extract_ip_from_url("http://192.168.90.11").unwrap();
+        assert_eq!(ip, "192.168.90.11");
+    }
+
+    #[test]
+    fn test_extract_ip_from_url_with_port() {
+        let ip = SyncService::extract_ip_from_url("http://192.168.90.11:80").unwrap();
+        assert_eq!(ip, "192.168.90.11");
+    }
+
+    #[test]
+    fn test_extract_ip_from_url_with_path() {
+        let ip = SyncService::extract_ip_from_url("http://192.168.90.11/path").unwrap();
+        assert_eq!(ip, "192.168.90.11");
+    }
+
+    #[test]
+    fn test_extract_ip_from_url_https() {
+        let ip = SyncService::extract_ip_from_url("https://192.168.90.11").unwrap();
+        assert_eq!(ip, "192.168.90.11");
+    }
+
+    #[test]
+    fn test_extract_ip_from_url_empty() {
+        let result = SyncService::extract_ip_from_url("");
+        assert!(result.is_err());
     }
 }
