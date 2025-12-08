@@ -132,7 +132,12 @@ impl ZkTcpClient {
 
         // Lock device during data transfer (fire and forget - device may not respond)
         debug!("Disabling device");
-        let _ = self.send_command(CMD_DISABLEDEVICE, &[]).await;
+        {
+            let packet = build_packet(CMD_DISABLEDEVICE, &[], self.session_id, &mut self.reply_id);
+            if let Some(ref mut stream) = self.stream {
+                let _ = write_packet(stream, &packet, Duration::from_secs(2)).await;
+            }
+        }
 
         // Use buffered read for attendance data
         let stream = self
@@ -154,17 +159,24 @@ impl ZkTcpClient {
                 data
             }
             Err(e) => {
-                // Cleanup on error
+                // Cleanup on error (fire and forget - don't wait for responses)
                 error!("Error during download: {e}, cleaning up");
-                let _ = self.send_command(CMD_FREE_DATA, &[]).await;
-                let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
+                if let Some(ref mut stream) = self.stream {
+                    let packet = build_packet(CMD_FREE_DATA, &[], self.session_id, &mut self.reply_id);
+                    let _ = write_packet(stream, &packet, Duration::from_secs(2)).await;
+                    let packet = build_packet(CMD_ENABLEDEVICE, &[], self.session_id, &mut self.reply_id);
+                    let _ = write_packet(stream, &packet, Duration::from_secs(2)).await;
+                }
                 return Err(e);
             }
         };
 
-        // Unlock device
+        // Unlock device (fire and forget - device may not respond)
         debug!("Re-enabling device");
-        let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
+        if let Some(ref mut stream) = self.stream {
+            let packet = build_packet(CMD_ENABLEDEVICE, &[], self.session_id, &mut self.reply_id);
+            let _ = write_packet(stream, &packet, Duration::from_secs(2)).await;
+        }
 
         // Parse attendance data
         debug!("Parsing attendance data");

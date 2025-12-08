@@ -69,11 +69,6 @@ path-guid = "A1B2C3D4-5E6F-7A8B-9C0D-1E2F3A4B5C6D"
 license = false
 eula = false
 
-# Examples
-[[example]]
-name = "test_tcp"
-path = "examples/test_tcp.rs"
-
 # Release build optimizations
 [profile.release]
 opt-level = 3
