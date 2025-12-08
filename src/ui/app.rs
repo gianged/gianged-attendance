@@ -11,7 +11,7 @@ use crate::entities::{departments, employees};
 use crate::models::attendance::{AttendanceDetail, DailyAttendance};
 use crate::models::department::{CreateDepartment, UpdateDepartment};
 use crate::models::employee::{CreateEmployee, UpdateEmployee};
-use crate::sync::{SyncResult, run_sync_background};
+use crate::sync::{SyncResult, SyncService, run_sync_background};
 
 use super::components::colors;
 use super::{dashboard, department_panel, reports_panel, settings_panel, staff_panel, sync_panel};
@@ -867,17 +867,18 @@ impl App {
         }
     }
 
-    /// Test device connection.
+    /// Test device connection using TCP protocol.
     pub fn test_device_connection(&mut self) {
         self.device_test_status = None;
-        self.log_info("Testing device connection...");
+        self.log_info("Testing device connection (TCP)...");
 
-        let url = self.config.device.url.clone();
+        let config = self.config.clone();
+        let db = self.pool.clone();
         let tx = self.tx.clone();
 
         self.rt.spawn(async move {
-            let client = crate::client::ZkClient::new(&url);
-            match client.test_connection().await {
+            let service = SyncService::new(config, db);
+            match service.test_device_connection().await {
                 Ok(success) => {
                     let _ = tx.send(UiMessage::DeviceTestResult(success));
                 }
