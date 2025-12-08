@@ -17,8 +17,11 @@ const CMD_DISABLEDEVICE: u16 = 1003;
 const CMD_ENABLEDEVICE: u16 = 1004;
 const CMD_GET_FREE_SIZES: u16 = 50;
 const CMD_ATTLOG_RRQ: u16 = 13;
-const CMD_DATA_RDY: u16 = 1500;
 const CMD_FREE_DATA: u16 = 1502;
+
+// Data transfer constants (not used as commands, just for reference)
+#[allow(dead_code)]
+const CMD_DATA: u16 = 1501; // Device sends data with this command code
 
 // Response codes
 const CMD_ACK_OK: u16 = 2000;
@@ -304,29 +307,80 @@ impl ZkTcpClient {
     }
 
     /// Read data chunks from device.
+    ///
+    /// After CMD_PREPARE_DATA response, the device streams data directly.
+    /// We just read from the TCP socket - no commands needed.
     async fn read_data_chunks(&mut self, expected_size: usize) -> Result<Vec<u8>> {
-        let mut all_data = Vec::with_capacity(expected_size);
-        const MAX_CHUNKS: usize = 200;
         const MAX_DATA_SIZE: usize = 10_000_000; // 10MB safety limit
 
-        for _ in 0..MAX_CHUNKS {
-            let response = self.send_command(CMD_DATA_RDY, &[]).await?;
+        if expected_size == 0 {
+            return Ok(Vec::new());
+        }
 
-            // Data starts after the 8-byte payload header
-            if response.len() > PAYLOAD_MIN_SIZE {
-                let chunk = &response[PAYLOAD_MIN_SIZE..];
-                all_data.extend_from_slice(chunk);
+        let timeout_duration = self.timeout_duration;
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| AppError::TcpConnectionFailed("Not connected".to_string()))?;
 
-                // Check if this is the last chunk (small response or expected size reached)
-                if chunk.len() < 1024 || all_data.len() >= expected_size {
+        let mut all_data = Vec::with_capacity(expected_size);
+
+        // Device streams data directly after CMD_PREPARE_DATA
+        // Each packet has: [TCP_HEADER(4)] [LENGTH(4)] [PAYLOAD]
+        // Keep reading until we have expected_size bytes
+
+        while all_data.len() < expected_size {
+            // Read TCP header (8 bytes: magic + length)
+            let mut header = [0u8; HEADER_SIZE];
+            match timeout(timeout_duration, stream.read_exact(&mut header)).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    // Connection error - return what we have
+                    if all_data.is_empty() {
+                        return Err(AppError::TcpConnectionFailed(format!("Data read failed: {e}")));
+                    }
                     break;
                 }
-            } else {
-                // Empty response, done
+                Err(_) => {
+                    // Timeout - return what we have
+                    break;
+                }
+            }
+
+            // Verify magic bytes
+            if header[0..4] != TCP_HEADER {
+                // Not a valid packet - might be end of stream
                 break;
             }
 
-            // Safety check
+            // Get payload length
+            let payload_len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+
+            if payload_len == 0 {
+                break;
+            }
+
+            // Safety limit per packet
+            if payload_len > 100_000 {
+                return Err(AppError::TcpProtocolError(format!(
+                    "Packet too large: {payload_len} bytes"
+                )));
+            }
+
+            // Read payload
+            let mut payload = vec![0u8; payload_len];
+            timeout(timeout_duration, stream.read_exact(&mut payload))
+                .await
+                .map_err(|_| AppError::DeviceTimeout("Data payload read timeout".to_string()))?
+                .map_err(|e| AppError::TcpConnectionFailed(format!("Data payload read failed: {e}")))?;
+
+            // Skip 8-byte command header in payload, append actual data
+            // Payload structure: [CMD(2)] [CHECKSUM(2)] [SESSION(2)] [REPLY(2)] [DATA...]
+            if payload.len() > PAYLOAD_MIN_SIZE {
+                all_data.extend_from_slice(&payload[PAYLOAD_MIN_SIZE..]);
+            }
+
+            // Safety check for total data size
             if all_data.len() > MAX_DATA_SIZE {
                 return Err(AppError::TcpProtocolError(format!(
                     "Data too large: {} bytes",
