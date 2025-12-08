@@ -4,7 +4,7 @@ use crate::config::AppConfig;
 use crate::db::attendance;
 use crate::error::{AppError, Result};
 use crate::ui::app::SyncProgress;
-use crate::zk_tcp_client::ZkTcpClient;
+use crate::zk_tcp::ZkTcpClient;
 use chrono::Local;
 use sea_orm::DatabaseConnection;
 use tokio::sync::mpsc;

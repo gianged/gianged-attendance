@@ -7,6 +7,6 @@ pub mod export;
 pub mod models;
 pub mod sync;
 pub mod ui;
-pub mod zk_tcp_client;
+pub mod zk_tcp;
 
 pub use error::{AppError, Result};
