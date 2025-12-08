@@ -1,6 +1,7 @@
 //! ZKTeco TCP binary protocol client.
 //!
 //! Implements the binary protocol on port 4370 for complete attendance data retrieval.
+//! Based on the pyzk library implementation.
 
 use crate::error::{AppError, Result};
 use crate::models::attendance::CreateAttendanceLog;
@@ -17,20 +18,23 @@ const CMD_DISABLEDEVICE: u16 = 1003;
 const CMD_ENABLEDEVICE: u16 = 1004;
 const CMD_GET_FREE_SIZES: u16 = 50;
 const CMD_ATTLOG_RRQ: u16 = 13;
-const CMD_FREE_DATA: u16 = 1502;
 
-// Data transfer constants (not used as commands, just for reference)
-#[allow(dead_code)]
-const CMD_DATA: u16 = 1501; // Device sends data with this command code
+// Data transfer commands
+const CMD_PREPARE_DATA: u16 = 1500;
+const CMD_DATA: u16 = 1501;
+const CMD_FREE_DATA: u16 = 1502;
+const CMD_PREPARE_BUFFER: u16 = 1503;
+const CMD_READ_BUFFER: u16 = 1504;
 
 // Response codes
+#[allow(dead_code)]
 const CMD_ACK_OK: u16 = 2000;
-const CMD_PREPARE_DATA: u16 = 1500;
 
 // Protocol constants
 const TCP_HEADER: [u8; 4] = [0x50, 0x50, 0x82, 0x7D];
 const HEADER_SIZE: usize = 8;
 const PAYLOAD_MIN_SIZE: usize = 8; // cmd(2) + checksum(2) + session(2) + reply(2)
+const MAX_CHUNK: usize = 0xFFC0; // ~65KB per chunk for TCP
 
 /// ZKTeco TCP client for binary protocol communication.
 pub struct ZkTcpClient {
@@ -107,8 +111,6 @@ impl ZkTcpClient {
         let response = self.send_command(CMD_GET_FREE_SIZES, &[]).await?;
 
         // Attendance count is at offset 40 in the response data (after 8-byte payload header)
-        // The free sizes response has: users, fingerprints, passwords, cards, attendance logs, etc.
-        // Attendance log count is typically at offset 40 (varies by firmware)
         if response.len() >= 44 {
             let count = u32::from_le_bytes([response[40], response[41], response[42], response[43]]);
             Ok(count)
@@ -133,50 +135,168 @@ impl ZkTcpClient {
         // Lock device during data transfer
         self.send_command(CMD_DISABLEDEVICE, &[]).await?;
 
-        // Request attendance data
-        let response = match self.send_command(CMD_ATTLOG_RRQ, &[]).await {
-            Ok(r) => r,
-            Err(e) => {
-                // Unlock device on error
-                let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
-                return Err(e);
-            }
-        };
-
-        // Check response code
-        let response_code = u16::from_le_bytes([response[0], response[1]]);
-        if response_code != CMD_PREPARE_DATA && response_code != CMD_ACK_OK {
-            let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
-            return Err(AppError::TcpProtocolError(format!(
-                "Expected PREPARE_DATA response, got {response_code}"
-            )));
-        }
-
-        // Extract data size from response (offset 8, 4 bytes LE)
-        let data_size = if response.len() >= 12 {
-            u32::from_le_bytes([response[8], response[9], response[10], response[11]]) as usize
-        } else {
-            0
-        };
-
-        // Read data chunks
-        let raw_data = match self.read_data_chunks(data_size).await {
+        // Use buffered read for attendance data
+        let raw_data = match self.read_with_buffer(CMD_ATTLOG_RRQ).await {
             Ok(data) => data,
             Err(e) => {
+                // Cleanup on error
                 let _ = self.send_command(CMD_FREE_DATA, &[]).await;
                 let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
                 return Err(e);
             }
         };
 
-        // Free device buffer
+        // Free buffer and unlock device
         let _ = self.send_command(CMD_FREE_DATA, &[]).await;
-
-        // Unlock device
         let _ = self.send_command(CMD_ENABLEDEVICE, &[]).await;
 
         // Parse attendance data
         self.parse_attendance_data(&raw_data)
+    }
+
+    /// Read data using buffered commands (for large data like attendance logs).
+    /// This follows pyzk's read_with_buffer implementation.
+    async fn read_with_buffer(&mut self, command: u16) -> Result<Vec<u8>> {
+        // Build command string for PREPARE_BUFFER:
+        // Format: <bhii = 1 byte (1) + 2 bytes (command) + 4 bytes (fct=0) + 4 bytes (ext=0)
+        let mut cmd_data = Vec::with_capacity(11);
+        cmd_data.push(1u8); // Always 1
+        cmd_data.extend_from_slice(&command.to_le_bytes()); // Command (2 bytes)
+        cmd_data.extend_from_slice(&0u32.to_le_bytes()); // fct = 0 (4 bytes)
+        cmd_data.extend_from_slice(&0u32.to_le_bytes()); // ext = 0 (4 bytes)
+
+        // Send PREPARE_BUFFER command
+        let response = self.send_command(CMD_PREPARE_BUFFER, &cmd_data).await?;
+
+        // Check response code
+        let response_code = u16::from_le_bytes([response[0], response[1]]);
+
+        // If response is CMD_DATA, data is included directly
+        if response_code == CMD_DATA {
+            // Data is in the response after the header
+            if response.len() > PAYLOAD_MIN_SIZE {
+                return Ok(response[PAYLOAD_MIN_SIZE..].to_vec());
+            }
+            return Ok(Vec::new());
+        }
+
+        // Otherwise, we need to read chunks
+        // Size is at offset 1-5 in the data portion (after 8-byte header)
+        if response.len() < PAYLOAD_MIN_SIZE + 5 {
+            return Err(AppError::TcpProtocolError(
+                "PREPARE_BUFFER response too small".to_string(),
+            ));
+        }
+
+        let size = u32::from_le_bytes([
+            response[PAYLOAD_MIN_SIZE + 1],
+            response[PAYLOAD_MIN_SIZE + 2],
+            response[PAYLOAD_MIN_SIZE + 3],
+            response[PAYLOAD_MIN_SIZE + 4],
+        ]) as usize;
+
+        if size == 0 {
+            return Ok(Vec::new());
+        }
+
+        // Calculate number of chunks
+        let remain = size % MAX_CHUNK;
+        let packets = (size - remain) / MAX_CHUNK;
+
+        let mut all_data = Vec::with_capacity(size);
+        let mut start: u32 = 0;
+
+        // Read full chunks
+        for _ in 0..packets {
+            let chunk = self.read_chunk(start, MAX_CHUNK as u32).await?;
+            all_data.extend_from_slice(&chunk);
+            start += MAX_CHUNK as u32;
+        }
+
+        // Read remaining data
+        if remain > 0 {
+            let chunk = self.read_chunk(start, remain as u32).await?;
+            all_data.extend_from_slice(&chunk);
+        }
+
+        Ok(all_data)
+    }
+
+    /// Read a chunk from the device buffer.
+    async fn read_chunk(&mut self, start: u32, size: u32) -> Result<Vec<u8>> {
+        // Build command string: <ii = start (4 bytes) + size (4 bytes)
+        let mut cmd_data = Vec::with_capacity(8);
+        cmd_data.extend_from_slice(&start.to_le_bytes());
+        cmd_data.extend_from_slice(&size.to_le_bytes());
+
+        // Send READ_BUFFER command
+        let response = self.send_command(CMD_READ_BUFFER, &cmd_data).await?;
+
+        // Check response code
+        let response_code = u16::from_le_bytes([response[0], response[1]]);
+
+        if response_code == CMD_DATA || response_code == CMD_PREPARE_DATA {
+            // Data is in the response after the header
+            if response.len() > PAYLOAD_MIN_SIZE {
+                return Ok(response[PAYLOAD_MIN_SIZE..].to_vec());
+            }
+        }
+
+        // For other responses, might need to read more data from socket
+        // This handles the case where data comes in a separate packet
+        self.receive_chunk_data(size as usize).await
+    }
+
+    /// Receive chunk data from socket (for large chunks).
+    async fn receive_chunk_data(&mut self, expected_size: usize) -> Result<Vec<u8>> {
+        let timeout_duration = self.timeout_duration;
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| AppError::TcpConnectionFailed("Not connected".to_string()))?;
+
+        let mut all_data = Vec::with_capacity(expected_size);
+
+        while all_data.len() < expected_size {
+            // Read TCP header
+            let mut header = [0u8; HEADER_SIZE];
+            match timeout(timeout_duration, stream.read_exact(&mut header)).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    if all_data.is_empty() {
+                        return Err(AppError::TcpConnectionFailed(format!("Chunk read failed: {e}")));
+                    }
+                    break;
+                }
+                Err(_) => break,
+            }
+
+            // Verify magic
+            if header[0..4] != TCP_HEADER {
+                break;
+            }
+
+            // Get payload length
+            let payload_len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+
+            if payload_len == 0 {
+                break;
+            }
+
+            // Read payload
+            let mut payload = vec![0u8; payload_len];
+            timeout(timeout_duration, stream.read_exact(&mut payload))
+                .await
+                .map_err(|_| AppError::DeviceTimeout("Chunk payload timeout".to_string()))?
+                .map_err(|e| AppError::TcpConnectionFailed(format!("Chunk payload failed: {e}")))?;
+
+            // Skip command header, append data
+            if payload.len() > PAYLOAD_MIN_SIZE {
+                all_data.extend_from_slice(&payload[PAYLOAD_MIN_SIZE..]);
+            }
+        }
+
+        Ok(all_data)
     }
 
     /// Calculate ZKTeco checksum.
@@ -252,7 +372,7 @@ impl ZkTcpClient {
             .map_err(|_| AppError::DeviceTimeout("Write timeout".to_string()))?
             .map_err(|e| AppError::TcpConnectionFailed(format!("Write failed: {e}")))?;
 
-        // Read response (stream borrow ends here)
+        // Read response
         self.read_response().await
     }
 
@@ -306,100 +426,30 @@ impl ZkTcpClient {
         Ok(payload)
     }
 
-    /// Read data chunks from device.
-    ///
-    /// After CMD_PREPARE_DATA response, the device streams data directly.
-    /// We just read from the TCP socket - no commands needed.
-    async fn read_data_chunks(&mut self, expected_size: usize) -> Result<Vec<u8>> {
-        const MAX_DATA_SIZE: usize = 10_000_000; // 10MB safety limit
-
-        if expected_size == 0 {
-            return Ok(Vec::new());
-        }
-
-        let timeout_duration = self.timeout_duration;
-        let stream = self
-            .stream
-            .as_mut()
-            .ok_or_else(|| AppError::TcpConnectionFailed("Not connected".to_string()))?;
-
-        let mut all_data = Vec::with_capacity(expected_size);
-
-        // Device streams data directly after CMD_PREPARE_DATA
-        // Each packet has: [TCP_HEADER(4)] [LENGTH(4)] [PAYLOAD]
-        // Keep reading until we have expected_size bytes
-
-        while all_data.len() < expected_size {
-            // Read TCP header (8 bytes: magic + length)
-            let mut header = [0u8; HEADER_SIZE];
-            match timeout(timeout_duration, stream.read_exact(&mut header)).await {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
-                    // Connection error - return what we have
-                    if all_data.is_empty() {
-                        return Err(AppError::TcpConnectionFailed(format!("Data read failed: {e}")));
-                    }
-                    break;
-                }
-                Err(_) => {
-                    // Timeout - return what we have
-                    break;
-                }
-            }
-
-            // Verify magic bytes
-            if header[0..4] != TCP_HEADER {
-                // Not a valid packet - might be end of stream
-                break;
-            }
-
-            // Get payload length
-            let payload_len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
-
-            if payload_len == 0 {
-                break;
-            }
-
-            // Safety limit per packet
-            if payload_len > 100_000 {
-                return Err(AppError::TcpProtocolError(format!(
-                    "Packet too large: {payload_len} bytes"
-                )));
-            }
-
-            // Read payload
-            let mut payload = vec![0u8; payload_len];
-            timeout(timeout_duration, stream.read_exact(&mut payload))
-                .await
-                .map_err(|_| AppError::DeviceTimeout("Data payload read timeout".to_string()))?
-                .map_err(|e| AppError::TcpConnectionFailed(format!("Data payload read failed: {e}")))?;
-
-            // Skip 8-byte command header in payload, append actual data
-            // Payload structure: [CMD(2)] [CHECKSUM(2)] [SESSION(2)] [REPLY(2)] [DATA...]
-            if payload.len() > PAYLOAD_MIN_SIZE {
-                all_data.extend_from_slice(&payload[PAYLOAD_MIN_SIZE..]);
-            }
-
-            // Safety check for total data size
-            if all_data.len() > MAX_DATA_SIZE {
-                return Err(AppError::TcpProtocolError(format!(
-                    "Data too large: {} bytes",
-                    all_data.len()
-                )));
-            }
-        }
-
-        Ok(all_data)
-    }
-
     /// Parse attendance data (auto-detect format).
     fn parse_attendance_data(&self, data: &[u8]) -> Result<Vec<CreateAttendanceLog>> {
         if data.is_empty() {
             return Ok(Vec::new());
         }
 
-        // Detect format: text format starts with ASCII digits or has tabs/newlines
-        // Binary format has structured 40-byte records with null padding
+        // The first 4 bytes might be total size, skip if present
+        let data = if data.len() > 4 {
+            let potential_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+            if potential_size == data.len() - 4 {
+                // First 4 bytes are size header, skip them
+                &data[4..]
+            } else {
+                data
+            }
+        } else {
+            data
+        };
+
+        if data.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Detect format: text format has tabs/newlines, binary has structured records
         let is_text = data
             .iter()
             .take(100)
