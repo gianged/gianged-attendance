@@ -130,9 +130,9 @@ impl ZkTcpClient {
 
         debug!("Starting attendance download");
 
-        // Lock device during data transfer
+        // Lock device during data transfer (fire and forget - device may not respond)
         debug!("Disabling device");
-        self.send_command(CMD_DISABLEDEVICE, &[]).await?;
+        let _ = self.send_command(CMD_DISABLEDEVICE, &[]).await;
 
         // Use buffered read for attendance data
         let stream = self
