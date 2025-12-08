@@ -6,10 +6,15 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use tracing::error;
+use tracing::{error, info};
 
 /// Write packet to stream with timeout.
 pub(crate) async fn write_packet(stream: &mut TcpStream, packet: &[u8], timeout_duration: Duration) -> Result<()> {
+    println!(
+        "[ZK] TX ({} bytes): {:02X?}",
+        packet.len(),
+        &packet[..packet.len().min(32)]
+    );
     timeout(timeout_duration, stream.write_all(packet))
         .await
         .map_err(|_| AppError::DeviceTimeout("Write timeout".to_string()))?
@@ -17,20 +22,27 @@ pub(crate) async fn write_packet(stream: &mut TcpStream, packet: &[u8], timeout_
             error!("Write failed: {e}");
             AppError::TcpConnectionFailed(format!("Write failed: {e}"))
         })?;
+    println!("[ZK] TX complete");
     Ok(())
 }
 
 /// Read a response packet with full metadata.
 pub(crate) async fn read_response(stream: &mut TcpStream, timeout_duration: Duration) -> Result<TcpResponse> {
     // Read TCP header (8 bytes: magic + length)
+    println!("[ZK] RX waiting for header ({:?} timeout)...", timeout_duration);
     let mut header = [0u8; HEADER_SIZE];
     timeout(timeout_duration, stream.read_exact(&mut header))
         .await
-        .map_err(|_| AppError::DeviceTimeout("Read timeout".to_string()))?
+        .map_err(|_| {
+            println!("[ZK] RX TIMEOUT!");
+            error!("Read timeout waiting for header");
+            AppError::DeviceTimeout("Read timeout".to_string())
+        })?
         .map_err(|e| {
             error!("Read failed: {e}");
             AppError::TcpConnectionFailed(format!("Read failed: {e}"))
         })?;
+    println!("[ZK] RX header: {:02X?}", header);
 
     // Verify magic bytes
     if header[0..4] != TCP_HEADER {

@@ -42,7 +42,8 @@ impl ZkTcpClient {
     pub async fn connect(&mut self) -> Result<()> {
         let addr = format!("{}:{}", self.ip, self.port);
 
-        info!("Connecting to device at {addr}");
+        println!("[ZK] TCP connecting to {} (timeout={:?})", addr, self.timeout_duration);
+        info!("TCP connecting to {} (timeout={:?})", addr, self.timeout_duration);
 
         let stream = timeout(self.timeout_duration, TcpStream::connect(&addr))
             .await
@@ -56,9 +57,11 @@ impl ZkTcpClient {
             })?;
 
         self.stream = Some(stream);
+        println!("[ZK] TCP connected OK, sending CMD_CONNECT...");
 
         // Send CMD_CONNECT
         let response = self.send_command(CMD_CONNECT, &[]).await?;
+        println!("[ZK] CMD_CONNECT response: {} bytes", response.len());
 
         // Extract session ID from response (bytes 4-6 in payload)
         if response.len() >= 6 {

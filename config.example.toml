@@ -3,9 +3,11 @@
 
 [device]
 # ZKTeco fingerprint scanner connection
-url = "http://192.168.90.11"
-username = "administrator"
-password = "123456"
+url = "http://192.168.90.11"       # Device URL (used for legacy HTTP mode)
+username = "administrator"          # HTTP login username (legacy)
+password = "123456"                 # HTTP login password (legacy)
+tcp_port = 4370                     # TCP binary protocol port (default: 4370)
+tcp_timeout_secs = 30               # TCP operation timeout in seconds (min: 5)
 
 [database]
 # PostgreSQL connection settings
@@ -17,12 +19,12 @@ password = "password"
 
 [sync]
 # Attendance sync settings
-days = 30                    # Number of days to sync
-max_user_id = 300            # Maximum user ID to query from device
-auto_enabled = false         # Enable automatic sync
-interval_minutes = 60        # Auto-sync interval in minutes
+days = 30                           # Number of days to sync (1-365)
+max_user_id = 300                   # Maximum user ID to query from device
+auto_enabled = false                # Enable automatic sync
+interval_minutes = 60               # Auto-sync interval in minutes (min: 1)
 
 [ui]
 # User interface settings
-start_minimized = false      # Start application minimized
-minimize_to_tray = true      # Minimize to system tray instead of closing
+start_minimized = false             # Start application minimized
+minimize_to_tray = true             # Minimize to system tray instead of closing
