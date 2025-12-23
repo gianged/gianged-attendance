@@ -4,10 +4,13 @@ use crate::client::ZkClient;
 use crate::config::AppConfig;
 use crate::db::attendance;
 use crate::error::Result;
+use crate::models::attendance::CreateAttendanceLog;
 use crate::ui::app::SyncProgress;
+use crate::zk::{AttendanceRecord as ZkAttendance, ZkTcpClient};
 use chrono::{Local, TimeDelta, Utc};
 use sea_orm::DatabaseConnection;
 use tokio::sync::mpsc;
+use tracing::info;
 
 /// Result of a sync operation.
 #[derive(Debug, Clone)]
@@ -42,6 +45,52 @@ impl SyncService {
 
     /// Perform a sync operation.
     pub async fn sync(&self) -> Result<SyncResult> {
+        if self.config.device.use_tcp() {
+            self.sync_via_tcp().await
+        } else {
+            self.sync_via_http().await
+        }
+    }
+
+    /// Sync via TCP protocol (reads from flash storage).
+    async fn sync_via_tcp(&self) -> Result<SyncResult> {
+        let start = std::time::Instant::now();
+        let device_ip = self.config.device.device_ip().to_string();
+
+        info!("Starting TCP sync from {device_ip}:4370");
+
+        // Run blocking TCP client in spawn_blocking
+        let records = tokio::task::spawn_blocking(move || {
+            let addr = format!("{device_ip}:4370");
+            let mut client = ZkTcpClient::connect(&addr)?;
+            client.get_attendance()
+        })
+        .await
+        .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))??;
+
+        let downloaded = records.len();
+
+        // Convert ZK records to CreateAttendanceLog
+        let logs: Vec<CreateAttendanceLog> = records.into_iter().map(convert_zk_record).collect();
+
+        // Insert into database
+        let inserted = attendance::insert_batch(&self.db, &logs).await?;
+        let skipped = downloaded.saturating_sub(inserted);
+
+        let duration_secs = start.elapsed().as_secs_f64();
+
+        info!("TCP sync complete: {downloaded} downloaded, {inserted} inserted");
+
+        Ok(SyncResult {
+            downloaded,
+            inserted,
+            skipped,
+            duration_secs,
+        })
+    }
+
+    /// Sync via HTTP protocol (legacy, limited buffer).
+    async fn sync_via_http(&self) -> Result<SyncResult> {
         let start = std::time::Instant::now();
 
         // Create client and login
@@ -77,13 +126,68 @@ impl SyncService {
     }
 
     /// Perform sync with progress callback.
-    pub async fn sync_with_progress<F>(&self, mut on_progress: F) -> Result<SyncResult>
+    pub async fn sync_with_progress<F>(&self, on_progress: F) -> Result<SyncResult>
+    where
+        F: FnMut(f32, &str),
+    {
+        if self.config.device.use_tcp() {
+            self.sync_via_tcp_with_progress(on_progress).await
+        } else {
+            self.sync_via_http_with_progress(on_progress).await
+        }
+    }
+
+    /// TCP sync with progress callback.
+    async fn sync_via_tcp_with_progress<F>(&self, mut on_progress: F) -> Result<SyncResult>
+    where
+        F: FnMut(f32, &str),
+    {
+        let start = std::time::Instant::now();
+        let device_ip = self.config.device.device_ip().to_string();
+
+        on_progress(0.0, "Connecting to device (TCP)...");
+
+        // Run blocking TCP client in spawn_blocking
+        let records = tokio::task::spawn_blocking(move || {
+            let addr = format!("{device_ip}:4370");
+            let mut client = ZkTcpClient::connect(&addr)?;
+            client.get_attendance()
+        })
+        .await
+        .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))??;
+
+        let downloaded = records.len();
+        on_progress(0.6, &format!("Downloaded {downloaded} records"));
+
+        // Convert ZK records to CreateAttendanceLog
+        let logs: Vec<CreateAttendanceLog> = records.into_iter().map(convert_zk_record).collect();
+
+        on_progress(0.7, "Inserting into database...");
+        let inserted = attendance::insert_batch(&self.db, &logs).await?;
+        let skipped = downloaded.saturating_sub(inserted);
+
+        on_progress(0.9, "Finalizing...");
+
+        let duration_secs = start.elapsed().as_secs_f64();
+
+        on_progress(1.0, &format!("Done! Inserted {inserted} new records"));
+
+        Ok(SyncResult {
+            downloaded,
+            inserted,
+            skipped,
+            duration_secs,
+        })
+    }
+
+    /// HTTP sync with progress callback.
+    async fn sync_via_http_with_progress<F>(&self, mut on_progress: F) -> Result<SyncResult>
     where
         F: FnMut(f32, &str),
     {
         let start = std::time::Instant::now();
 
-        on_progress(0.0, "Connecting to device...");
+        on_progress(0.0, "Connecting to device (HTTP)...");
 
         let mut client = ZkClient::new(&self.config.device.url);
 
@@ -124,19 +228,35 @@ impl SyncService {
 
     /// Test device connection.
     pub async fn test_device_connection(&self) -> Result<bool> {
-        let client = ZkClient::new(&self.config.device.url);
-        client.test_connection().await
+        if self.config.device.use_tcp() {
+            let device_ip = self.config.device.device_ip().to_string();
+            let result = tokio::task::spawn_blocking(move || {
+                let addr = format!("{device_ip}:4370");
+                ZkTcpClient::connect(&addr).map(|_| true)
+            })
+            .await
+            .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))?;
+            Ok(result.unwrap_or(false))
+        } else {
+            let client = ZkClient::new(&self.config.device.url);
+            client.test_connection().await
+        }
     }
 
-    /// Test device login.
+    /// Test device login (HTTP only, TCP has no login).
     pub async fn test_device_login(&self) -> Result<bool> {
-        let mut client = ZkClient::new(&self.config.device.url);
-        match client
-            .login(&self.config.device.username, &self.config.device.password)
-            .await
-        {
-            Ok(()) => Ok(true),
-            Err(_) => Ok(false),
+        if self.config.device.use_tcp() {
+            // TCP protocol doesn't use login, connection test is sufficient
+            self.test_device_connection().await
+        } else {
+            let mut client = ZkClient::new(&self.config.device.url);
+            match client
+                .login(&self.config.device.username, &self.config.device.password)
+                .await
+            {
+                Ok(()) => Ok(true),
+                Err(_) => Ok(false),
+            }
         }
     }
 }
@@ -164,5 +284,16 @@ pub async fn run_sync_background(config: AppConfig, db: DatabaseConnection, tx: 
         Err(e) => {
             let _ = tx.send(SyncProgress::Error(e.to_string()));
         }
+    }
+}
+
+/// Convert ZK attendance record to database model.
+fn convert_zk_record(record: ZkAttendance) -> CreateAttendanceLog {
+    CreateAttendanceLog {
+        scanner_uid: record.user_id as i32,
+        check_time: record.timestamp,
+        verify_type: 2, // Default to fingerprint (TCP doesn't provide this)
+        status: 0,
+        source: "device".to_string(),
     }
 }

@@ -46,6 +46,13 @@ pub struct DeviceConfig {
     pub url: String,
     pub username: String,
     pub password: String,
+    /// Protocol to use: "tcp" (default, reads from flash) or "http" (legacy, limited buffer)
+    #[serde(default = "default_protocol")]
+    pub protocol: String,
+}
+
+fn default_protocol() -> String {
+    "tcp".to_string()
 }
 
 /// PostgreSQL database connection settings.
@@ -155,12 +162,30 @@ impl DatabaseConfig {
     }
 }
 
+impl DeviceConfig {
+    /// Check if TCP protocol should be used.
+    pub fn use_tcp(&self) -> bool {
+        self.protocol.eq_ignore_ascii_case("tcp")
+    }
+
+    /// Extract IP address from URL for TCP connection.
+    pub fn device_ip(&self) -> &str {
+        self.url
+            .trim_start_matches("http://")
+            .trim_start_matches("https://")
+            .split(':')
+            .next()
+            .unwrap_or(&self.url)
+    }
+}
+
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
             url: "http://192.168.90.11".to_string(),
             username: "administrator".to_string(),
             password: String::new(),
+            protocol: default_protocol(),
         }
     }
 }

@@ -44,6 +44,10 @@ pub enum AppError {
     /// Record not found
     #[error("Not found: {0}")]
     NotFound(String),
+
+    /// ZK TCP protocol error
+    #[error("ZK protocol error: {0}")]
+    ZkProtocol(#[from] crate::zk::ZkError),
 }
 
 /// Result type alias for AppError

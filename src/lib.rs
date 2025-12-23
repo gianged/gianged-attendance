@@ -7,5 +7,6 @@ pub mod export;
 pub mod models;
 pub mod sync;
 pub mod ui;
+pub mod zk;
 
 pub use error::{AppError, Result};
