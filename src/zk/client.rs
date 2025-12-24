@@ -71,30 +71,24 @@ impl ZkTcpClient {
         self.send_command(CMD_GET_FREE_SIZES, &[])?;
         self.send_command(CMD_GET_FREE_SIZES, &[])?;
 
-        // Send DATA_WRRQ and get total size from response
+        // Send DATA_WRRQ - device responds with ACK_OK containing total size
         let wrrq_response = self.send_command(CMD_DATA_WRRQ, &TABLE_ATTLOG)?;
 
-        // Skip ACK_OK responses to get to DATA response with total size
-        let mut size_response = wrrq_response;
-        while size_response.cmd == CMD_ACK_OK {
-            debug!("Skipping ACK_OK, waiting for DATA with size info");
-            size_response = self.read_response()?;
-        }
-
-        // DATA response contains total size in first 4 bytes
-        if size_response.cmd != CMD_DATA || size_response.data.len() < 4 {
+        // Device sends ACK_OK with total size in data[1..5], not DATA
+        if wrrq_response.cmd != CMD_ACK_OK || wrrq_response.data.len() < 5 {
             return Err(ZkError::InvalidResponse(format!(
-                "Expected CMD_DATA ({CMD_DATA}) with size info, got cmd={} data_len={}",
-                size_response.cmd,
-                size_response.data.len()
+                "Expected CMD_ACK_OK ({CMD_ACK_OK}) after DATA_WRRQ, got cmd={} data_len={}",
+                wrrq_response.cmd,
+                wrrq_response.data.len()
             )));
         }
 
+        // Total size is at data[1..5] in little-endian format
         let total_size = u32::from_le_bytes([
-            size_response.data[0],
-            size_response.data[1],
-            size_response.data[2],
-            size_response.data[3],
+            wrrq_response.data[1],
+            wrrq_response.data[2],
+            wrrq_response.data[3],
+            wrrq_response.data[4],
         ]);
 
         info!("Total attendance data size: {total_size} bytes");
