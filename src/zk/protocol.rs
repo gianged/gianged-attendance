@@ -12,6 +12,9 @@ pub const CHUNK_SIZE: u32 = 65472;
 pub const CMD_CONNECT: u16 = 1000;
 pub const CMD_EXIT: u16 = 1001;
 pub const CMD_GET_FREE_SIZES: u16 = 50;
+#[allow(dead_code)]
+pub const CMD_ACK_OK: u16 = 1500; // Device ACK response
+pub const CMD_DATA: u16 = 1501; // Device data response
 pub const CMD_FREE_DATA: u16 = 1502;
 pub const CMD_DATA_WRRQ: u16 = 1503;
 pub const CMD_READ_CHUNK: u16 = 1504;

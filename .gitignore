@@ -43,3 +43,6 @@ migrations/*.sql
 
 # Installer output
 /installer/Output/
+
+# Packet files
+/docs/packets

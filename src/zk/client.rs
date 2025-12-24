@@ -9,8 +9,8 @@ use tracing::{debug, info, warn};
 use super::attendance::{AttendanceRecord, parse_attendance};
 use super::error::{Result, ZkError};
 use super::protocol::{
-    CHUNK_SIZE, CMD_CONNECT, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA, CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER,
-    Response, TABLE_ATTLOG, build_packet,
+    CHUNK_SIZE, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA, CMD_GET_FREE_SIZES,
+    CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
 };
 
 /// TCP client for ZKTeco devices.
@@ -74,16 +74,31 @@ impl ZkTcpClient {
 
         // Get total size (first chunk request with size query)
         let size_query = [0x00, 0x00, 0x00, 0x00, 0x04, 0x24, 0x00, 0x00];
-        let response = self.send_command(CMD_READ_CHUNK, &size_query)?;
+        let ack_response = self.send_command(CMD_READ_CHUNK, &size_query)?;
 
-        // Parse total data size from response
-        let total_size = if response.data.len() >= 4 {
-            u32::from_le_bytes([response.data[0], response.data[1], response.data[2], response.data[3]])
+        // Parse total data size from ACK response
+        // Format: first 4 bytes = size, next 4 bytes = size again, then checksum
+        let total_size = if ack_response.data.len() >= 4 {
+            u32::from_le_bytes([
+                ack_response.data[0],
+                ack_response.data[1],
+                ack_response.data[2],
+                ack_response.data[3],
+            ])
         } else {
             return Err(ZkError::NoData);
         };
 
         info!("Total attendance data size: {total_size} bytes");
+
+        // Read the DATA packet that follows the ACK
+        let data_response = self.read_response()?;
+        if data_response.cmd != CMD_DATA {
+            debug!(
+                "Unexpected response after size query: cmd={}, expected={}",
+                data_response.cmd, CMD_DATA
+            );
+        }
 
         // Free this initial buffer
         self.send_command(CMD_FREE_DATA, &[])?;
@@ -103,13 +118,24 @@ impl ZkTcpClient {
             chunk_req[0..4].copy_from_slice(&offset.to_le_bytes());
             chunk_req[4..8].copy_from_slice(&chunk_size.to_le_bytes());
 
-            let response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
-            all_data.extend_from_slice(&response.data);
+            // Send chunk request - device responds with ACK then DATA
+            let _ack = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
+
+            // Read the actual DATA packet
+            let data_response = self.read_response()?;
+            if data_response.cmd != CMD_DATA {
+                return Err(ZkError::InvalidResponse(format!(
+                    "Expected CMD_DATA ({}), got {}",
+                    CMD_DATA, data_response.cmd
+                )));
+            }
+
+            all_data.extend_from_slice(&data_response.data);
 
             debug!(
                 "Read chunk: offset={offset}, size={}, received={}",
                 chunk_size,
-                response.data.len()
+                data_response.data.len()
             );
 
             offset += chunk_size;
