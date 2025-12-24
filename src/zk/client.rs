@@ -75,10 +75,24 @@ impl ZkTcpClient {
 
         // Get total size (first chunk request with size query)
         let size_query = [0x00, 0x00, 0x00, 0x00, 0x04, 0x24, 0x00, 0x00];
-        let ack_response = self.send_command(CMD_READ_CHUNK, &size_query)?;
+        let mut ack_response = self.send_command(CMD_READ_CHUNK, &size_query)?;
 
-        // Parse total data size from ACK response
-        // Format: first 4 bytes = size, next 4 bytes = size again, then checksum
+        // Skip delayed ACK_OK (2000) responses from previous DATA_WRRQ command
+        // Wait for ACK_DATA (1500) which contains the actual size
+        while ack_response.cmd == CMD_ACK_OK {
+            debug!("Skipping delayed ACK_OK (cmd=2000) in size query");
+            ack_response = self.read_response()?;
+        }
+
+        if ack_response.cmd != CMD_ACK_DATA {
+            return Err(ZkError::InvalidResponse(format!(
+                "Expected CMD_ACK_DATA ({CMD_ACK_DATA}) for size query, got {}",
+                ack_response.cmd
+            )));
+        }
+
+        // Parse total data size from ACK_DATA response
+        // Format: first 4 bytes = size
         let total_size = if ack_response.data.len() >= 4 {
             u32::from_le_bytes([
                 ack_response.data[0],
@@ -92,12 +106,12 @@ impl ZkTcpClient {
 
         info!("Total attendance data size: {total_size} bytes");
 
-        // Read the DATA packet that follows the ACK
+        // Read the DATA packet that follows the ACK_DATA
         let data_response = self.read_response()?;
         if data_response.cmd != CMD_DATA {
             debug!(
-                "Unexpected response after size query: cmd={}, expected={}",
-                data_response.cmd, CMD_DATA
+                "Unexpected response after size query: cmd={}, expected={CMD_DATA}",
+                data_response.cmd
             );
         }
 
