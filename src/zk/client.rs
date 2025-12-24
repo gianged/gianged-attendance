@@ -9,8 +9,9 @@ use tracing::{debug, info, warn};
 use super::attendance::{AttendanceRecord, parse_attendance};
 use super::error::{Result, ZkError};
 use super::protocol::{
-    CHUNK_SIZE, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA,
-    CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
+    CHUNK_SIZE, CMD_ACK_DATA, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT,
+    CMD_FREE_DATA, CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG,
+    build_packet,
 };
 
 /// TCP client for ZKTeco devices.
@@ -119,27 +120,34 @@ impl ZkTcpClient {
             chunk_req[4..8].copy_from_slice(&chunk_size.to_le_bytes());
 
             // Send chunk request - device may respond with:
-            // 1. ACK (1500) then DATA (1501)
-            // 2. DATA (1501) directly
-            let first_response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
+            // 1. Delayed ACK (2000) from previous command, then ACK_DATA (1500), then DATA (1501)
+            // 2. ACK_DATA (1500) then DATA (1501)
+            // 3. DATA (1501) directly
+            let mut first_response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
+
+            // Skip delayed responses (cmd=2000) from previous commands
+            while first_response.cmd == CMD_ACK_OK {
+                debug!("Skipping delayed ACK (cmd=2000), reading next response");
+                first_response = self.read_response()?;
+            }
 
             let chunk_data = if first_response.cmd == CMD_DATA {
                 // Got DATA directly
                 first_response.data
-            } else if first_response.cmd == CMD_ACK_OK {
-                // Got ACK first, read DATA next
+            } else if first_response.cmd == CMD_ACK_DATA {
+                // Got ACK_DATA (1500) first, read DATA next
                 let data_response = self.read_response()?;
                 if data_response.cmd != CMD_DATA {
                     return Err(ZkError::InvalidResponse(format!(
-                        "Expected CMD_DATA ({}) after ACK, got {}",
-                        CMD_DATA, data_response.cmd
+                        "Expected CMD_DATA ({CMD_DATA}) after ACK_DATA, got {}",
+                        data_response.cmd
                     )));
                 }
                 data_response.data
             } else {
                 return Err(ZkError::InvalidResponse(format!(
-                    "Expected CMD_DATA ({}) or CMD_ACK_OK ({}), got {}",
-                    CMD_DATA, CMD_ACK_OK, first_response.cmd
+                    "Expected CMD_DATA ({CMD_DATA}) or CMD_ACK_DATA ({CMD_ACK_DATA}), got {}",
+                    first_response.cmd
                 )));
             };
 
