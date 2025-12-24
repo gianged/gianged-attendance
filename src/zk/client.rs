@@ -63,6 +63,8 @@ impl ZkTcpClient {
     /// Get all attendance records from device.
     ///
     /// Reads the complete ATTLOG table from device flash storage.
+    /// Uses chunk-based reading, continuing until a chunk smaller than CHUNK_SIZE
+    /// is received (indicating end of data).
     pub fn get_attendance(&mut self) -> Result<Vec<AttendanceRecord>> {
         info!("Fetching attendance records from device");
 
@@ -73,82 +75,30 @@ impl ZkTcpClient {
         // Prepare ATTLOG read
         self.send_command(CMD_DATA_WRRQ, &TABLE_ATTLOG)?;
 
-        // Get total size (first chunk request with size query)
-        let size_query = [0x00, 0x00, 0x00, 0x00, 0x04, 0x24, 0x00, 0x00];
-        let mut ack_response = self.send_command(CMD_READ_CHUNK, &size_query)?;
-
-        // Skip delayed ACK_OK (2000) responses from previous DATA_WRRQ command
-        // Wait for ACK_DATA (1500) which contains the actual size
-        while ack_response.cmd == CMD_ACK_OK {
-            debug!("Skipping delayed ACK_OK (cmd=2000) in size query");
-            ack_response = self.read_response()?;
-        }
-
-        if ack_response.cmd != CMD_ACK_DATA {
-            return Err(ZkError::InvalidResponse(format!(
-                "Expected CMD_ACK_DATA ({CMD_ACK_DATA}) for size query, got {}",
-                ack_response.cmd
-            )));
-        }
-
-        // Parse total data size from ACK_DATA response
-        // Format: first 4 bytes = size
-        let total_size = if ack_response.data.len() >= 4 {
-            u32::from_le_bytes([
-                ack_response.data[0],
-                ack_response.data[1],
-                ack_response.data[2],
-                ack_response.data[3],
-            ])
-        } else {
-            return Err(ZkError::NoData);
-        };
-
-        info!("Total attendance data size: {total_size} bytes");
-
-        // Read the DATA packet that follows the ACK_DATA
-        let data_response = self.read_response()?;
-        if data_response.cmd != CMD_DATA {
-            debug!(
-                "Unexpected response after size query: cmd={}, expected={CMD_DATA}",
-                data_response.cmd
-            );
-        }
-
-        // Free this initial buffer
-        self.send_command(CMD_FREE_DATA, &[])?;
-
-        // Now read actual attendance data
-        // Prepare again
-        self.send_command(CMD_DATA_WRRQ, &TABLE_ATTLOG)?;
-
-        let mut all_data = Vec::with_capacity(total_size as usize);
+        let mut all_data = Vec::new();
         let mut offset: u32 = 0;
 
-        while offset < total_size {
-            let remaining = total_size - offset;
-            let chunk_size = remaining.min(CHUNK_SIZE);
-
+        loop {
             let mut chunk_req = [0u8; 8];
             chunk_req[0..4].copy_from_slice(&offset.to_le_bytes());
-            chunk_req[4..8].copy_from_slice(&chunk_size.to_le_bytes());
+            chunk_req[4..8].copy_from_slice(&CHUNK_SIZE.to_le_bytes());
 
             // Send chunk request - device may respond with:
             // 1. Delayed ACK (2000) from previous command, then ACK_DATA (1500), then DATA (1501)
             // 2. ACK_DATA (1500) then DATA (1501)
             // 3. DATA (1501) directly
-            let mut first_response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
+            let mut response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
 
-            // Skip delayed responses (cmd=2000) from previous commands
-            while first_response.cmd == CMD_ACK_OK {
-                debug!("Skipping delayed ACK (cmd=2000), reading next response");
-                first_response = self.read_response()?;
+            // Skip delayed ACK_OK (2000) responses from previous commands
+            while response.cmd == CMD_ACK_OK {
+                debug!("Skipping delayed ACK_OK (cmd=2000)");
+                response = self.read_response()?;
             }
 
-            let chunk_data = if first_response.cmd == CMD_DATA {
+            let chunk_data = if response.cmd == CMD_DATA {
                 // Got DATA directly
-                first_response.data
-            } else if first_response.cmd == CMD_ACK_DATA {
+                response.data
+            } else if response.cmd == CMD_ACK_DATA {
                 // Got ACK_DATA (1500) first, read DATA next
                 let data_response = self.read_response()?;
                 if data_response.cmd != CMD_DATA {
@@ -161,18 +111,21 @@ impl ZkTcpClient {
             } else {
                 return Err(ZkError::InvalidResponse(format!(
                     "Expected CMD_DATA ({CMD_DATA}) or CMD_ACK_DATA ({CMD_ACK_DATA}), got {}",
-                    first_response.cmd
+                    response.cmd
                 )));
             };
 
-            debug!(
-                "Read chunk: offset={offset}, size={}, received={}",
-                chunk_size,
-                chunk_data.len()
-            );
+            let chunk_len = chunk_data.len() as u32;
+            debug!("Read chunk: offset={offset}, received={chunk_len} bytes");
 
             all_data.extend_from_slice(&chunk_data);
-            offset += chunk_size;
+            offset += chunk_len;
+
+            // End of data: received less than CHUNK_SIZE
+            if chunk_len < CHUNK_SIZE {
+                debug!("Received final chunk ({chunk_len} < {CHUNK_SIZE}), end of data");
+                break;
+            }
         }
 
         // Free buffer
