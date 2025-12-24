@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/gianged/gianged-attendance/compare/v1.2.0...v1.2.1) (2025-12-24)
+
+
+### Bug Fixes
+
+* update cargo lock ([42d2c87](https://github.com/gianged/gianged-attendance/commit/42d2c87aff6c5e7d9640f331b27e08ffa02f150c))
+* Update installer to reference renamed database script ([b93fb3a](https://github.com/gianged/gianged-attendance/commit/b93fb3a060ded394105c857816a9b4546a2a85e6))
+
 ## [1.2.0](https://github.com/gianged/gianged-attendance/compare/v1.1.5...v1.2.0) (2025-12-24)
 
 
