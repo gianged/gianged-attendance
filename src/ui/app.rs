@@ -11,7 +11,8 @@ use crate::entities::{departments, employees};
 use crate::models::attendance::{AttendanceDetail, DailyAttendance};
 use crate::models::department::{CreateDepartment, UpdateDepartment};
 use crate::models::employee::{CreateEmployee, UpdateEmployee};
-use crate::sync::{SyncResult, run_sync_background};
+use crate::sync::{SyncResult, SyncService, run_sync_background};
+use crate::zk::DeviceCapacity;
 
 use super::components::colors;
 use super::{dashboard, department_panel, reports_panel, settings_panel, staff_panel, sync_panel};
@@ -106,6 +107,12 @@ pub enum UiMessage {
     // Connection tests
     DeviceTestResult(bool),
     DatabaseTestResult(bool),
+
+    // Device capacity
+    DeviceCapacityLoaded(DeviceCapacity),
+    DeviceCapacityError(String),
+    DeviceCleared,
+    DeviceClearError(String),
 }
 
 /// Form state for department CRUD.
@@ -343,6 +350,12 @@ pub struct App {
     // Settings panel test status
     pub device_test_status: Option<bool>,
     pub database_test_status: Option<bool>,
+
+    // Device capacity
+    pub device_capacity: Option<DeviceCapacity>,
+    pub device_capacity_loading: bool,
+    pub show_clear_confirm: bool,
+    pub device_clearing: bool,
 }
 
 impl App {
@@ -388,6 +401,10 @@ impl App {
             device_status_rx: None,
             device_test_status: None,
             database_test_status: None,
+            device_capacity: None,
+            device_capacity_loading: false,
+            show_clear_confirm: false,
+            device_clearing: false,
         };
 
         // Load initial data
@@ -888,6 +905,50 @@ impl App {
         });
     }
 
+    /// Fetch device capacity.
+    pub fn fetch_device_capacity(&mut self) {
+        self.device_capacity_loading = true;
+        self.log_info("Fetching device capacity...");
+
+        let config = self.config.clone();
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+
+        self.rt.spawn(async move {
+            let service = SyncService::new(config, pool);
+            match service.get_device_capacity().await {
+                Ok(capacity) => {
+                    let _ = tx.send(UiMessage::DeviceCapacityLoaded(capacity));
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::DeviceCapacityError(e.to_string()));
+                }
+            }
+        });
+    }
+
+    /// Clear all attendance records from device.
+    pub fn clear_device(&mut self) {
+        self.device_clearing = true;
+        self.log_info("Clearing device attendance records...");
+
+        let config = self.config.clone();
+        let pool = self.pool.clone();
+        let tx = self.tx.clone();
+
+        self.rt.spawn(async move {
+            let service = SyncService::new(config, pool);
+            match service.clear_device().await {
+                Ok(()) => {
+                    let _ = tx.send(UiMessage::DeviceCleared);
+                }
+                Err(e) => {
+                    let _ = tx.send(UiMessage::DeviceClearError(e.to_string()));
+                }
+            }
+        });
+    }
+
     /// Test database connection.
     pub fn test_database_connection(&mut self) {
         self.database_test_status = None;
@@ -1151,6 +1212,29 @@ impl App {
                         self.log_error("Database connection failed");
                     }
                 }
+                UiMessage::DeviceCapacityLoaded(capacity) => {
+                    self.device_capacity_loading = false;
+                    self.log_success(format!(
+                        "Device capacity: {} / {} records",
+                        capacity.records, capacity.records_cap
+                    ));
+                    self.device_capacity = Some(capacity);
+                }
+                UiMessage::DeviceCapacityError(e) => {
+                    self.device_capacity_loading = false;
+                    self.log_error(format!("Failed to get capacity: {e}"));
+                }
+                UiMessage::DeviceCleared => {
+                    self.device_clearing = false;
+                    self.device_capacity = None; // Reset capacity to refresh
+                    self.log_success("Device attendance records cleared");
+                    self.success_message = Some("Device cleared successfully".to_string());
+                }
+                UiMessage::DeviceClearError(e) => {
+                    self.device_clearing = false;
+                    self.error_message = Some(format!("Failed to clear device: {e}"));
+                    self.log_error(format!("Failed to clear device: {e}"));
+                }
             }
         }
 
@@ -1398,6 +1482,28 @@ impl App {
                     if ui.button("OK").clicked() {
                         self.success_message = None;
                     }
+                });
+        }
+
+        // Clear device confirmation dialog
+        if self.show_clear_confirm {
+            egui::Window::new("Clear Device")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("This will delete ALL attendance records from the device.");
+                    ui.label("Make sure you have synced the data to the database first!");
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            self.show_clear_confirm = false;
+                        }
+                        if ui.button("Clear Device").clicked() {
+                            self.show_clear_confirm = false;
+                            self.clear_device();
+                        }
+                    });
                 });
         }
 

@@ -6,7 +6,7 @@ use crate::db::attendance;
 use crate::error::Result;
 use crate::models::attendance::CreateAttendanceLog;
 use crate::ui::app::SyncProgress;
-use crate::zk::{AttendanceRecord as ZkAttendance, ZkTcpClient};
+use crate::zk::{AttendanceRecord as ZkAttendance, DeviceCapacity, ZkTcpClient};
 use chrono::{Local, TimeDelta, Utc};
 use sea_orm::DatabaseConnection;
 use tokio::sync::mpsc;
@@ -19,15 +19,21 @@ pub struct SyncResult {
     pub inserted: usize,
     pub skipped: usize,
     pub duration_secs: f64,
+    pub device_cleared: bool,
 }
 
 impl SyncResult {
     /// Get summary message.
     pub fn summary(&self) -> String {
-        format!(
+        let base = format!(
             "Downloaded: {}, Inserted: {}, Skipped: {} (took {:.1}s)",
             self.downloaded, self.inserted, self.skipped, self.duration_secs
-        )
+        );
+        if self.device_cleared {
+            format!("{base} - Device cleared")
+        } else {
+            base
+        }
     }
 }
 
@@ -43,27 +49,45 @@ impl SyncService {
         Self { config, db }
     }
 
-    /// Perform a sync operation.
+    /// Perform a sync operation (TCP only).
     pub async fn sync(&self) -> Result<SyncResult> {
-        if self.config.device.use_tcp() {
-            self.sync_via_tcp().await
-        } else {
-            self.sync_via_http().await
-        }
+        // NOTE: HTTP mode is deprecated, always use TCP
+        self.sync_via_tcp().await
     }
 
     /// Sync via TCP protocol (reads from flash storage).
     async fn sync_via_tcp(&self) -> Result<SyncResult> {
         let start = std::time::Instant::now();
         let device_ip = self.config.device.device_ip().to_string();
+        let auto_clear_enabled = self.config.sync.auto_clear_enabled;
+        let auto_clear_threshold = self.config.sync.auto_clear_threshold;
 
         info!("Starting TCP sync from {device_ip}:4370");
 
         // Run blocking TCP client in spawn_blocking
-        let records = tokio::task::spawn_blocking(move || {
+        let (records, device_cleared) = tokio::task::spawn_blocking(move || {
             let addr = format!("{device_ip}:4370");
             let mut client = ZkTcpClient::connect(&addr)?;
-            client.get_attendance()
+            let records = client.get_attendance()?;
+
+            // Auto-clear if enabled and threshold exceeded
+            let cleared = if auto_clear_enabled {
+                let capacity = client.get_capacity()?;
+                if capacity.records >= auto_clear_threshold {
+                    info!(
+                        "Records {} >= threshold {}, clearing device",
+                        capacity.records, auto_clear_threshold
+                    );
+                    client.clear_attendance()?;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            Ok::<_, crate::zk::ZkError>((records, cleared))
         })
         .await
         .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))??;
@@ -86,10 +110,13 @@ impl SyncService {
             inserted,
             skipped,
             duration_secs,
+            device_cleared,
         })
     }
 
     /// Sync via HTTP protocol (legacy, limited buffer).
+    /// DEPRECATED: HTTP mode is no longer supported.
+    #[allow(dead_code)]
     async fn sync_via_http(&self) -> Result<SyncResult> {
         let start = std::time::Instant::now();
 
@@ -122,19 +149,17 @@ impl SyncService {
             inserted,
             skipped,
             duration_secs,
+            device_cleared: false, // HTTP protocol doesn't support auto-clear
         })
     }
 
-    /// Perform sync with progress callback.
+    /// Perform sync with progress callback (TCP only).
     pub async fn sync_with_progress<F>(&self, on_progress: F) -> Result<SyncResult>
     where
         F: FnMut(f32, &str),
     {
-        if self.config.device.use_tcp() {
-            self.sync_via_tcp_with_progress(on_progress).await
-        } else {
-            self.sync_via_http_with_progress(on_progress).await
-        }
+        // NOTE: HTTP mode is deprecated, always use TCP
+        self.sync_via_tcp_with_progress(on_progress).await
     }
 
     /// TCP sync with progress callback.
@@ -144,14 +169,35 @@ impl SyncService {
     {
         let start = std::time::Instant::now();
         let device_ip = self.config.device.device_ip().to_string();
+        let auto_clear_enabled = self.config.sync.auto_clear_enabled;
+        let auto_clear_threshold = self.config.sync.auto_clear_threshold;
 
         on_progress(0.0, "Connecting to device (TCP)...");
 
         // Run blocking TCP client in spawn_blocking
-        let records = tokio::task::spawn_blocking(move || {
+        let (records, device_cleared) = tokio::task::spawn_blocking(move || {
             let addr = format!("{device_ip}:4370");
             let mut client = ZkTcpClient::connect(&addr)?;
-            client.get_attendance()
+            let records = client.get_attendance()?;
+
+            // Auto-clear if enabled and threshold exceeded
+            let cleared = if auto_clear_enabled {
+                let capacity = client.get_capacity()?;
+                if capacity.records >= auto_clear_threshold {
+                    info!(
+                        "Records {} >= threshold {}, clearing device",
+                        capacity.records, auto_clear_threshold
+                    );
+                    client.clear_attendance()?;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            Ok::<_, crate::zk::ZkError>((records, cleared))
         })
         .await
         .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))??;
@@ -170,17 +216,25 @@ impl SyncService {
 
         let duration_secs = start.elapsed().as_secs_f64();
 
-        on_progress(1.0, &format!("Done! Inserted {inserted} new records"));
+        let done_msg = if device_cleared {
+            format!("Done! Inserted {inserted} new records (device cleared)")
+        } else {
+            format!("Done! Inserted {inserted} new records")
+        };
+        on_progress(1.0, &done_msg);
 
         Ok(SyncResult {
             downloaded,
             inserted,
             skipped,
             duration_secs,
+            device_cleared,
         })
     }
 
     /// HTTP sync with progress callback.
+    /// DEPRECATED: HTTP mode is no longer supported.
+    #[allow(dead_code)]
     async fn sync_via_http_with_progress<F>(&self, mut on_progress: F) -> Result<SyncResult>
     where
         F: FnMut(f32, &str),
@@ -223,41 +277,55 @@ impl SyncService {
             inserted,
             skipped,
             duration_secs,
+            device_cleared: false, // HTTP protocol doesn't support auto-clear
         })
     }
 
-    /// Test device connection.
+    /// Test device connection (TCP only).
     pub async fn test_device_connection(&self) -> Result<bool> {
-        if self.config.device.use_tcp() {
-            let device_ip = self.config.device.device_ip().to_string();
-            let result = tokio::task::spawn_blocking(move || {
-                let addr = format!("{device_ip}:4370");
-                ZkTcpClient::connect(&addr).map(|_| true)
-            })
-            .await
-            .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))?;
-            Ok(result.unwrap_or(false))
-        } else {
-            let client = ZkClient::new(&self.config.device.url);
-            client.test_connection().await
-        }
+        // NOTE: HTTP mode is deprecated, always use TCP
+        let device_ip = self.config.device.device_ip().to_string();
+        let result = tokio::task::spawn_blocking(move || {
+            let addr = format!("{device_ip}:4370");
+            ZkTcpClient::connect(&addr).map(|_| true)
+        })
+        .await
+        .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))?;
+        Ok(result.unwrap_or(false))
     }
 
-    /// Test device login (HTTP only, TCP has no login).
+    /// Test device login (TCP uses connection test).
     pub async fn test_device_login(&self) -> Result<bool> {
-        if self.config.device.use_tcp() {
-            // TCP protocol doesn't use login, connection test is sufficient
-            self.test_device_connection().await
-        } else {
-            let mut client = ZkClient::new(&self.config.device.url);
-            match client
-                .login(&self.config.device.username, &self.config.device.password)
-                .await
-            {
-                Ok(()) => Ok(true),
-                Err(_) => Ok(false),
-            }
-        }
+        // NOTE: HTTP mode is deprecated, TCP doesn't use login
+        self.test_device_connection().await
+    }
+
+    /// Get device storage capacity.
+    pub async fn get_device_capacity(&self) -> Result<DeviceCapacity> {
+        let device_ip = self.config.device.device_ip().to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let addr = format!("{device_ip}:4370");
+            let mut client = ZkTcpClient::connect(&addr)?;
+            client.get_capacity()
+        })
+        .await
+        .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))?
+        .map_err(crate::error::AppError::from)
+    }
+
+    /// Clear all attendance records from device.
+    pub async fn clear_device(&self) -> Result<()> {
+        let device_ip = self.config.device.device_ip().to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let addr = format!("{device_ip}:4370");
+            let mut client = ZkTcpClient::connect(&addr)?;
+            client.clear_attendance()
+        })
+        .await
+        .map_err(|e| crate::error::AppError::parse(format!("Task join error: {e}")))?
+        .map_err(crate::error::AppError::from)
     }
 }
 

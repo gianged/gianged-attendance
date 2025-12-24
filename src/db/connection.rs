@@ -1,20 +1,33 @@
 //! Database connection pool and utility functions.
 
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, PaginatorTrait, Statement};
+use sea_orm::sqlx::postgres::PgPoolOptions;
+use sea_orm::sqlx::Executor;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, PaginatorTrait, SqlxPostgresConnector, Statement};
 use std::time::Duration;
-use tracing::log::LevelFilter;
 
 /// Create a new database connection with configured pool settings.
+/// Uses after_connect callback to set search_path on each connection.
 pub async fn connect(database_url: &str) -> Result<DatabaseConnection, DbErr> {
-    let mut opt = ConnectOptions::new(database_url);
-    opt.max_connections(5)
+    // Build sqlx pool with after_connect callback
+    let sqlx_pool = PgPoolOptions::new()
+        .max_connections(5)
         .min_connections(1)
-        .connect_timeout(Duration::from_secs(10))
+        .acquire_timeout(Duration::from_secs(10))
         .idle_timeout(Duration::from_secs(300))
-        .sqlx_logging(true)
-        .sqlx_logging_level(LevelFilter::Debug);
+        .after_connect(|conn, _meta| {
+            Box::pin(async move {
+                // Set search_path for each new connection
+                conn.execute("SET search_path TO app, system, public")
+                    .await?;
+                Ok(())
+            })
+        })
+        .connect(database_url)
+        .await
+        .map_err(|e| DbErr::Conn(sea_orm::RuntimeErr::SqlxError(e)))?;
 
-    Database::connect(opt).await
+    // Convert sqlx pool to SeaORM DatabaseConnection
+    Ok(SqlxPostgresConnector::from_sqlx_postgres_pool(sqlx_pool))
 }
 
 /// Test database connection by executing a simple query.

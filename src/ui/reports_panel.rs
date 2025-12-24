@@ -1,13 +1,34 @@
 //! Attendance reports panel with filters and Excel export.
 
-use chrono::{Datelike, Local};
-use eframe::egui::{self, ScrollArea, Ui};
+use chrono::{Datelike, Local, NaiveDate};
+use eframe::egui::{self, RichText, ScrollArea, Ui};
 use egui_phosphor::regular::{
     ARROWS_CLOCKWISE, CARET_DOUBLE_LEFT, CARET_DOUBLE_RIGHT, CARET_LEFT, CARET_RIGHT, FILE_XLS, MAGNIFYING_GLASS,
 };
 
 use super::app::{App, REPORT_PAGE_SIZE, ReportType};
 use super::components::{back_button, panel_header, primary_button_with_icon, styled_button, styled_button_with_icon};
+
+/// Parse date from multiple formats: "2000-1-1", "2000/1/1", "2000 1 1", "2000.1.1"
+fn parse_flexible_date(input: &str) -> Option<NaiveDate> {
+    let input = input.trim();
+
+    // Split by common separators: - / space .
+    let parts: Vec<&str> = input
+        .split(['-', '/', ' ', '.'])
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let year: i32 = parts[0].parse().ok()?;
+    let month: u32 = parts[1].parse().ok()?;
+    let day: u32 = parts[2].parse().ok()?;
+
+    NaiveDate::from_ymd_opt(year, month, day)
+}
 
 /// Show the reports panel.
 ///
@@ -46,8 +67,8 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
     // Date range filters
     ui.horizontal(|ui| {
         ui.label("From:");
-        // Check if current input is valid
-        let start_valid = chrono::NaiveDate::parse_from_str(&app.report_filter.start_date_input, "%Y-%m-%d").is_ok();
+        // Check if current input is valid (flexible parsing)
+        let start_valid = parse_flexible_date(&app.report_filter.start_date_input).is_some();
         let start_response = ui.add(
             egui::TextEdit::singleline(&mut app.report_filter.start_date_input)
                 .desired_width(100.0)
@@ -59,20 +80,25 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
                 }),
         );
         if start_response.changed()
-            && let Ok(date) = chrono::NaiveDate::parse_from_str(&app.report_filter.start_date_input, "%Y-%m-%d")
+            && let Some(date) = parse_flexible_date(&app.report_filter.start_date_input)
         {
             app.report_filter.start_date = date;
         }
-        // On focus lost, reset to valid date if invalid
-        if start_response.lost_focus() && !start_valid {
-            app.report_filter.start_date_input = app.report_filter.start_date.format("%Y-%m-%d").to_string();
+        // On focus lost, normalize to YYYY-MM-DD format or reset if invalid
+        if start_response.lost_focus() {
+            if let Some(date) = parse_flexible_date(&app.report_filter.start_date_input) {
+                app.report_filter.start_date = date;
+                app.report_filter.start_date_input = date.format("%Y-%m-%d").to_string();
+            } else {
+                app.report_filter.start_date_input = app.report_filter.start_date.format("%Y-%m-%d").to_string();
+            }
         }
 
         ui.add_space(10.0);
 
         ui.label("To:");
-        // Check if current input is valid
-        let end_valid = chrono::NaiveDate::parse_from_str(&app.report_filter.end_date_input, "%Y-%m-%d").is_ok();
+        // Check if current input is valid (flexible parsing)
+        let end_valid = parse_flexible_date(&app.report_filter.end_date_input).is_some();
         let end_response = ui.add(
             egui::TextEdit::singleline(&mut app.report_filter.end_date_input)
                 .desired_width(100.0)
@@ -84,13 +110,18 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
                 }),
         );
         if end_response.changed()
-            && let Ok(date) = chrono::NaiveDate::parse_from_str(&app.report_filter.end_date_input, "%Y-%m-%d")
+            && let Some(date) = parse_flexible_date(&app.report_filter.end_date_input)
         {
             app.report_filter.end_date = date;
         }
-        // On focus lost, reset to valid date if invalid
-        if end_response.lost_focus() && !end_valid {
-            app.report_filter.end_date_input = app.report_filter.end_date.format("%Y-%m-%d").to_string();
+        // On focus lost, normalize to YYYY-MM-DD format or reset if invalid
+        if end_response.lost_focus() {
+            if let Some(date) = parse_flexible_date(&app.report_filter.end_date_input) {
+                app.report_filter.end_date = date;
+                app.report_filter.end_date_input = date.format("%Y-%m-%d").to_string();
+            } else {
+                app.report_filter.end_date_input = app.report_filter.end_date.format("%Y-%m-%d").to_string();
+            }
         }
 
         ui.add_space(20.0);
@@ -129,6 +160,9 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
             app.report_filter.reset_pagination();
         }
     });
+
+    // Format hint
+    ui.label(RichText::new("Accepts: YYYY-MM-DD, YYYY/M/D, YYYY.M.D").small().weak());
 
     ui.add_space(10.0);
 

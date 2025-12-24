@@ -46,7 +46,8 @@ pub struct DeviceConfig {
     pub url: String,
     pub username: String,
     pub password: String,
-    /// Protocol to use: "tcp" (default, reads from flash) or "http" (legacy, limited buffer)
+    /// Protocol to use. DEPRECATED: HTTP mode is no longer supported, TCP is always used.
+    /// This field is kept for backwards compatibility with existing config files.
     #[serde(default = "default_protocol")]
     pub protocol: String,
 }
@@ -72,6 +73,16 @@ pub struct SyncConfig {
     pub max_user_id: i32,
     pub auto_enabled: bool,
     pub interval_minutes: u32,
+    /// Auto-clear device memory when record count exceeds threshold.
+    #[serde(default)]
+    pub auto_clear_enabled: bool,
+    /// Record threshold for auto-clear (default: 20000).
+    #[serde(default = "default_clear_threshold")]
+    pub auto_clear_threshold: u32,
+}
+
+fn default_clear_threshold() -> u32 {
+    20000
 }
 
 /// UI preferences.
@@ -122,10 +133,8 @@ impl AppConfig {
         if self.database.name.trim().is_empty() {
             return Err(ConfigError::Validation("Database name cannot be empty".to_string()));
         }
-        if !self.device.url.is_empty() && !self.device.url.starts_with("http") {
-            return Err(ConfigError::Validation(
-                "Device URL must start with http:// or https://".to_string(),
-            ));
+        if self.device.url.trim().is_empty() {
+            return Err(ConfigError::Validation("Device URL/IP cannot be empty".to_string()));
         }
         if self.sync.days < 1 {
             return Err(ConfigError::Validation("Sync days must be at least 1".to_string()));
@@ -164,8 +173,10 @@ impl DatabaseConfig {
 
 impl DeviceConfig {
     /// Check if TCP protocol should be used.
+    /// DEPRECATED: Always returns true, HTTP mode is no longer supported.
+    #[allow(dead_code)]
     pub fn use_tcp(&self) -> bool {
-        self.protocol.eq_ignore_ascii_case("tcp")
+        true // HTTP mode deprecated, always use TCP
     }
 
     /// Extract IP address from URL for TCP connection.
@@ -182,8 +193,8 @@ impl DeviceConfig {
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
-            url: "http://192.168.90.11".to_string(),
-            username: "administrator".to_string(),
+            url: "192.168.90.11".to_string(),
+            username: String::new(),
             password: String::new(),
             protocol: default_protocol(),
         }
@@ -209,6 +220,8 @@ impl Default for SyncConfig {
             max_user_id: 300,
             auto_enabled: false,
             interval_minutes: 60,
+            auto_clear_enabled: false,
+            auto_clear_threshold: default_clear_threshold(),
         }
     }
 }
@@ -259,9 +272,9 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_invalid_device_url() {
+    fn test_validation_empty_device_url() {
         let mut config = AppConfig::default();
-        config.device.url = "ftp://invalid".to_string();
+        config.device.url = String::new();
         assert!(config.validate().is_err());
     }
 

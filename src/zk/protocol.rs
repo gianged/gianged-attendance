@@ -11,6 +11,7 @@ pub const CHUNK_SIZE: u32 = 65472;
 // Command codes
 pub const CMD_CONNECT: u16 = 1000;
 pub const CMD_EXIT: u16 = 1001;
+pub const CMD_CLEAR_ATTLOG: u16 = 15;
 pub const CMD_GET_FREE_SIZES: u16 = 50;
 pub const CMD_ACK_OK: u16 = 2000; // General device ACK (0x07d0)
 pub const CMD_ACK_DATA: u16 = 1500; // Data transfer ACK (0x05dc)

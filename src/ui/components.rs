@@ -150,3 +150,23 @@ pub fn danger_action_button(ui: &mut Ui, icon: &str, text: &str) -> Response {
         .min_size(button_style::SMALL_MIN_SIZE);
     ui.add(button)
 }
+
+/// Spacing constants for consistent UI.
+pub mod spacing {
+    /// Extra small spacing (4px)
+    pub const XS: f32 = 4.0;
+    /// Small spacing (8px)
+    pub const SM: f32 = 8.0;
+    /// Medium spacing (15px)
+    pub const MD: f32 = 15.0;
+    /// Large spacing (20px)
+    pub const LG: f32 = 20.0;
+}
+
+/// Create a standard card frame with consistent styling.
+pub fn card_frame(ui: &Ui) -> egui::Frame {
+    egui::Frame::new()
+        .fill(ui.style().visuals.extreme_bg_color)
+        .inner_margin(egui::Margin::same(15))
+        .corner_radius(CornerRadius::same(8))
+}

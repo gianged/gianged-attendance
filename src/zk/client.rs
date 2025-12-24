@@ -9,9 +9,20 @@ use tracing::{debug, info, warn};
 use super::attendance::{AttendanceRecord, parse_attendance};
 use super::error::{Result, ZkError};
 use super::protocol::{
-    CHUNK_SIZE, CMD_ACK_DATA, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA,
-    CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
+    CHUNK_SIZE, CMD_ACK_DATA, CMD_ACK_OK, CMD_CLEAR_ATTLOG, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT,
+    CMD_FREE_DATA, CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
 };
+
+/// Device storage capacity information.
+#[derive(Debug, Clone)]
+pub struct DeviceCapacity {
+    /// Current attendance record count.
+    pub records: u32,
+    /// Maximum record capacity.
+    pub records_cap: u32,
+    /// Available record slots.
+    pub records_av: u32,
+}
 
 /// TCP client for ZKTeco devices.
 ///
@@ -56,6 +67,61 @@ impl ZkTcpClient {
     pub fn disconnect(&mut self) -> Result<()> {
         debug!("Disconnecting from ZK device");
         self.send_command(CMD_EXIT, &[])?;
+        Ok(())
+    }
+
+    /// Get device storage capacity information.
+    pub fn get_capacity(&mut self) -> Result<DeviceCapacity> {
+        debug!("Getting device capacity");
+
+        let response = self.send_command(CMD_GET_FREE_SIZES, &[])?;
+
+        // Response contains 20 u32 values (80 bytes)
+        if response.data.len() < 80 {
+            return Err(ZkError::InvalidResponse(format!(
+                "Expected 80 bytes for capacity info, got {}",
+                response.data.len()
+            )));
+        }
+
+        let get_u32 = |idx: usize| -> u32 {
+            let offset = idx * 4;
+            u32::from_le_bytes([
+                response.data[offset],
+                response.data[offset + 1],
+                response.data[offset + 2],
+                response.data[offset + 3],
+            ])
+        };
+
+        let capacity = DeviceCapacity {
+            records: get_u32(8),
+            records_cap: get_u32(16),
+            records_av: get_u32(19),
+        };
+
+        info!(
+            "Device capacity: {} / {} records ({} available)",
+            capacity.records, capacity.records_cap, capacity.records_av
+        );
+
+        Ok(capacity)
+    }
+
+    /// Clear all attendance records from device.
+    pub fn clear_attendance(&mut self) -> Result<()> {
+        info!("Clearing attendance records from device");
+
+        let response = self.send_command(CMD_CLEAR_ATTLOG, &[])?;
+
+        if response.cmd != CMD_ACK_OK {
+            return Err(ZkError::InvalidResponse(format!(
+                "Expected CMD_ACK_OK ({CMD_ACK_OK}) after clear, got {}",
+                response.cmd
+            )));
+        }
+
+        info!("Attendance records cleared successfully");
         Ok(())
     }
 

@@ -19,5 +19,5 @@ mod error;
 mod protocol;
 
 pub use attendance::AttendanceRecord;
-pub use client::ZkTcpClient;
+pub use client::{DeviceCapacity, ZkTcpClient};
 pub use error::{Result, ZkError};

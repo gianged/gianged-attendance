@@ -6,7 +6,7 @@ use eframe::egui::{self, Color32, ProgressBar, RichText, ScrollArea, Ui};
 
 use super::app::{App, LogLevel, SyncState};
 use super::components::{back_button, colors, panel_header, styled_button_with_icon};
-use egui_phosphor::regular::{ARROWS_CLOCKWISE, PLUGS_CONNECTED, TRASH};
+use egui_phosphor::regular::{ARROWS_CLOCKWISE, DATABASE, PLUGS_CONNECTED, TRASH, WARNING};
 
 /// Show the sync panel.
 ///
@@ -20,18 +20,25 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
 
     panel_header(ui, "Device Sync");
 
-    // Device Info Section
-    show_device_info(app, ui);
+    // Top row: Device Info + Statistics side by side
+    ui.columns(2, |columns| {
+        // Left column: Device Info
+        show_device_info(app, &mut columns[0]);
+
+        // Right column: Statistics
+        show_statistics(app, &mut columns[1]);
+    });
 
     ui.add_space(20.0);
 
-    // Sync Control Section
-    show_sync_control(app, ui);
+    // Middle row: Sync Control + Device Capacity side by side
+    ui.columns(2, |columns| {
+        // Left column: Sync Control
+        show_sync_control(app, &mut columns[0]);
 
-    ui.add_space(20.0);
-
-    // Statistics Section
-    show_statistics(app, ui);
+        // Right column: Device Capacity
+        show_device_capacity(app, &mut columns[1]);
+    });
 
     ui.add_space(20.0);
 
@@ -76,6 +83,173 @@ fn show_device_info(app: &mut App, ui: &mut Ui) {
             if styled_button_with_icon(ui, PLUGS_CONNECTED, "Test Connection").clicked() {
                 app.test_device_connection();
             }
+        });
+}
+
+fn show_device_capacity(app: &mut App, ui: &mut Ui) {
+    egui::Frame::new()
+        .fill(ui.style().visuals.extreme_bg_color)
+        .inner_margin(egui::Margin::same(15))
+        .corner_radius(egui::CornerRadius::same(8))
+        .show(ui, |ui| {
+            ui.label(RichText::new("Device Storage").strong());
+            ui.add_space(10.0);
+
+            // Capacity display
+            if let Some(capacity) = &app.device_capacity {
+                let usage_percent = if capacity.records_cap > 0 {
+                    capacity.records as f32 / capacity.records_cap as f32
+                } else {
+                    0.0
+                };
+
+                egui::Grid::new("capacity_grid")
+                    .num_columns(2)
+                    .spacing([20.0, 6.0])
+                    .show(ui, |ui| {
+                        ui.label("Records:");
+                        ui.label(format!("{} / {}", capacity.records, capacity.records_cap));
+                        ui.end_row();
+
+                        ui.label("Available:");
+                        ui.label(capacity.records_av.to_string());
+                        ui.end_row();
+
+                        ui.label("Usage:");
+                        let bar_color = if usage_percent > 0.8 {
+                            colors::ERROR
+                        } else if usage_percent > 0.6 {
+                            colors::WARNING
+                        } else {
+                            colors::SUCCESS
+                        };
+                        ui.add(ProgressBar::new(usage_percent).fill(bar_color).show_percentage());
+                        ui.end_row();
+                    });
+
+                // Warning banner when usage is high
+                if usage_percent > 0.75 {
+                    ui.add_space(8.0);
+                    let (bg_color, text_color, message) = if usage_percent > 0.9 {
+                        (
+                            Color32::from_rgb(254, 226, 226),
+                            Color32::from_rgb(153, 27, 27),
+                            "Critical: Device storage almost full!",
+                        )
+                    } else {
+                        (
+                            Color32::from_rgb(254, 249, 195),
+                            Color32::from_rgb(133, 77, 14),
+                            "Warning: Consider clearing old records",
+                        )
+                    };
+
+                    egui::Frame::new()
+                        .fill(bg_color)
+                        .inner_margin(egui::Margin::same(8))
+                        .corner_radius(egui::CornerRadius::same(4))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(WARNING).color(text_color));
+                                ui.label(RichText::new(message).color(text_color));
+                            });
+                        });
+                }
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(8.0);
+
+                // Auto-clear section with status indicator
+                ui.label(RichText::new("Auto-Clear").strong());
+                ui.add_space(4.0);
+
+                egui::Frame::new()
+                    .fill(ui.style().visuals.faint_bg_color)
+                    .inner_margin(egui::Margin::same(8))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Status dot indicator
+                            let indicator_color = if app.config.sync.auto_clear_enabled {
+                                Color32::from_rgb(34, 197, 94) // Green
+                            } else {
+                                Color32::from_rgb(156, 163, 175) // Gray
+                            };
+                            let (rect, _) =
+                                ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                            ui.painter().circle_filled(rect.center(), 5.0, indicator_color);
+
+                            let status_text = if app.config.sync.auto_clear_enabled {
+                                "Enabled"
+                            } else {
+                                "Disabled"
+                            };
+                            ui.label(RichText::new(status_text).strong());
+
+                            if app.config.sync.auto_clear_enabled {
+                                ui.label("|");
+                                ui.label(format!("Threshold: {} records", app.config.sync.auto_clear_threshold));
+                            }
+                        });
+
+                        // Show warning if threshold exceeded
+                        if app.config.sync.auto_clear_enabled
+                            && capacity.records >= app.config.sync.auto_clear_threshold
+                        {
+                            ui.add_space(4.0);
+                            ui.label(
+                                RichText::new("Will clear on next sync")
+                                    .small()
+                                    .color(colors::WARNING),
+                            );
+                        }
+                    });
+
+                ui.add_space(10.0);
+
+                // Manual clear section
+                ui.label(RichText::new("Manual Clear").strong());
+                ui.add_space(4.0);
+            } else if app.device_capacity_loading {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Loading capacity...");
+                });
+            } else {
+                ui.label(RichText::new("Capacity not loaded").weak());
+            }
+
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                let can_refresh = !app.device_capacity_loading && !app.device_clearing;
+                if ui
+                    .add_enabled(
+                        can_refresh,
+                        egui::Button::new(RichText::new(format!("{DATABASE} Refresh"))),
+                    )
+                    .clicked()
+                {
+                    app.fetch_device_capacity();
+                }
+
+                let can_clear = !app.device_capacity_loading && !app.device_clearing && app.device_capacity.is_some();
+                if ui
+                    .add_enabled(
+                        can_clear,
+                        egui::Button::new(RichText::new(format!("{TRASH} Clear Device"))),
+                    )
+                    .clicked()
+                {
+                    app.show_clear_confirm = true;
+                }
+
+                if app.device_clearing {
+                    ui.spinner();
+                    ui.label("Clearing...");
+                }
+            });
         });
 }
 
@@ -198,6 +372,9 @@ fn show_log_viewer(app: &mut App, ui: &mut Ui) {
                 .max_height(200.0)
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
+                    // Constrain width to enable text wrapping
+                    ui.set_width(ui.available_width());
+
                     if app.log_messages.is_empty() {
                         ui.label(RichText::new("No log entries").weak());
                     } else {
@@ -209,15 +386,13 @@ fn show_log_viewer(app: &mut App, ui: &mut Ui) {
                                 LogLevel::Error => colors::ERROR,
                             };
 
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(entry.timestamp.format("[%H:%M:%S]").to_string())
-                                        .small()
-                                        .monospace()
-                                        .color(Color32::DARK_GRAY),
-                                );
-                                ui.label(RichText::new(&entry.message).color(color));
-                            });
+                            // Format as single line with wrapped text
+                            let formatted = format!(
+                                "[{}] {}",
+                                entry.timestamp.format("%H:%M:%S"),
+                                entry.message
+                            );
+                            ui.add(egui::Label::new(RichText::new(formatted).color(color)).wrap());
                         }
                     }
                 });

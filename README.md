@@ -6,14 +6,14 @@ Desktop mini ERP application for staff and attendance management. Syncs attendan
 
 - **Department Management** - CRUD operations with hierarchical structure
 - **Staff Management** - Employee records with fingerprint device assignment
-- **Attendance Sync** - Download attendance logs from ZKTeco devices
+- **Attendance Sync** - Download attendance logs from ZKTeco devices via TCP
 - **Reports** - Daily attendance summary with Excel export
 
 ## Requirements
 
 - Rust 1.75+ (edition 2024)
 - PostgreSQL 14+
-- ZKTeco fingerprint terminal (HTTP interface)
+- ZKTeco fingerprint terminal (TCP port 4370)
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ Desktop mini ERP application for staff and attendance management. Syncs attendan
 createdb gianged_attendance
 
 # Apply schema
-psql -d gianged_attendance -f database.sql
+psql -d gianged_attendance -f database/script.sql
 ```
 
 ### 2. Configuration
@@ -33,9 +33,7 @@ Create `config.toml` in the application directory:
 
 ```toml
 [device]
-url = "http://192.168.90.11"
-username = "administrator"
-password = "123456"
+url = "192.168.90.11"  # IP address of ZKTeco device
 
 [database]
 host = "localhost"
@@ -49,6 +47,8 @@ days = 30
 max_user_id = 300
 auto_enabled = false
 interval_minutes = 60
+auto_clear_enabled = false      # Auto-clear device when threshold exceeded
+auto_clear_threshold = 20000    # Record count threshold for auto-clear
 
 [ui]
 start_minimized = false
@@ -70,7 +70,6 @@ cargo build --release
 | GUI           | egui/eframe            |
 | Async Runtime | tokio + rustls         |
 | Database      | PostgreSQL via sea-orm |
-| HTTP Client   | reqwest                |
 | Excel Export  | rust_xlsxwriter        |
 
 ## Project Structure
@@ -78,10 +77,12 @@ cargo build --release
 ```
 gianged-attendance/
 ├── Cargo.toml
-├── database.sql            # PostgreSQL schema (source of truth)
+├── database/
+│   └── script.sql          # PostgreSQL schema (source of truth)
 ├── config.toml             # Application configuration
 ├── docs/
 │   ├── overview.md         # Solution overview
+│   ├── zk-tcp-protocol.md  # ZKTeco TCP protocol documentation
 │   └── tasks/              # Implementation phases
 └── src/
     ├── main.rs             # Entry point
@@ -90,7 +91,10 @@ gianged-attendance/
     ├── entities/           # Generated SeaORM entities
     ├── models/             # DTOs and business logic
     ├── db/                 # Repository layer
-    ├── client.rs           # ZKTeco HTTP client
+    ├── zk/                 # ZKTeco TCP protocol client
+    │   ├── client.rs       # TCP client implementation
+    │   ├── protocol.rs     # Packet building/parsing
+    │   └── attendance.rs   # Record parsing
     ├── sync.rs             # Sync orchestration
     ├── export.rs           # Excel export
     └── ui/                 # GUI panels
@@ -98,11 +102,21 @@ gianged-attendance/
 
 ## ZKTeco Device Integration
 
-The application connects to ZKTeco fingerprint terminals via HTTP:
+The application connects to ZKTeco fingerprint terminals using the native TCP protocol on port 4370.
 
-- **Protocol**: HTTP with session-based cookies
-- **Data Format**: Tab-separated values (TSV)
-- **Verification Types**: Fingerprint (2), Card (101)
+### TCP Protocol
+
+- **Port**: 4370
+- **Format**: Binary protocol reading directly from device flash storage
+- **Advantages**: Complete attendance history, no buffer limits, reliable checksums
+- **Auto-clear**: Optionally clear device records when threshold is exceeded
+
+See [docs/zk-tcp-protocol.md](docs/zk-tcp-protocol.md) for protocol details.
+
+### Verification Types
+
+- Fingerprint (2)
+- Card (101)
 
 ## Database Schema
 
@@ -113,7 +127,7 @@ Uses a database-first approach with PostgreSQL:
 - **app.attendance_logs** - Attendance records with deduplication
 - **Views** - Pre-built queries for reporting
 
-Schema changes must be made in `database.sql` first, then entities regenerated using `sea-orm-cli`.
+Schema changes must be made in `database/script.sql` first, then entities regenerated using `sea-orm-cli`.
 
 ## Development
 
