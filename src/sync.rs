@@ -291,8 +291,8 @@ pub async fn run_sync_background(config: AppConfig, db: DatabaseConnection, tx: 
 fn convert_zk_record(record: ZkAttendance) -> CreateAttendanceLog {
     CreateAttendanceLog {
         scanner_uid: record.user_id as i32,
-        check_time: record.timestamp,
-        verify_type: 2, // Default to fingerprint (TCP doesn't provide this)
+        check_time: record.timestamp.to_utc(), // Convert local time to UTC for storage
+        verify_type: 2,                        // Default to fingerprint (TCP doesn't provide this)
         status: 0,
         source: "device".to_string(),
     }

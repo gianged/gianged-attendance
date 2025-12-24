@@ -1,6 +1,6 @@
 //! Attendance record parsing for ZK devices.
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Local, TimeZone};
 
 /// Size of each attendance record in bytes (TCP protocol format).
 pub const RECORD_SIZE: usize = 40;
@@ -13,8 +13,8 @@ const DATA_PREFIX_SIZE: usize = 4;
 pub struct AttendanceRecord {
     /// Employee user ID from device.
     pub user_id: u32,
-    /// Check-in/out timestamp (UTC).
-    pub timestamp: DateTime<Utc>,
+    /// Check-in/out timestamp (local time).
+    pub timestamp: DateTime<Local>,
 }
 
 /// Decode ZK packed timestamp format.
@@ -72,8 +72,8 @@ pub fn parse_attendance(data: &[u8]) -> Vec<AttendanceRecord> {
             let uid_end = uid_bytes.iter().position(|&b| b == 0).unwrap_or(10);
             let user_id: u32 = std::str::from_utf8(&uid_bytes[..uid_end]).ok()?.parse().ok()?;
 
-            // Convert to DateTime<Utc>
-            let datetime = Utc
+            // Convert to DateTime<Local> - device stores local time
+            let datetime = Local
                 .with_ymd_and_hms(
                     i32::from(year),
                     u32::from(month),
