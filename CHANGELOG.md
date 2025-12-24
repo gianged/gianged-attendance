@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/gianged/gianged-attendance/compare/v1.1.5...v1.2.0) (2025-12-24)
+
+
+### Features
+
+* Add support for ACK and DATA responses in ZK TCP client protocol ([d7a54f8](https://github.com/gianged/gianged-attendance/commit/d7a54f8c296c7e6db4fbca75bc0f08af8ec22455))
+* Enhance chunk request handling to support direct DATA responses or ACK followed by DATA ([719dda5](https://github.com/gianged/gianged-attendance/commit/719dda53dc3df62fc9da65b71fdba190b1ab2adf))
+* Implement ZK TCP protocol client for attendance data retrieval ([63a4cc1](https://github.com/gianged/gianged-attendance/commit/63a4cc122c30f3f4bdc0c987e72206d4dd111550))
+* Improve size query handling by skipping delayed ACK_OK responses and ensuring CMD_ACK_DATA is received ([91586fe](https://github.com/gianged/gianged-attendance/commit/91586fe9e5a823a0ca38533b2634f2e4e1cef2f0))
+* Refactor attendance data retrieval to improve chunk reading and handle total size response ([efcf4f2](https://github.com/gianged/gianged-attendance/commit/efcf4f217e9e172e81f40388a50a163cf3f49b60))
+* Refactor attendance data retrieval to streamline chunk reading and handle end-of-data conditions ([e839360](https://github.com/gianged/gianged-attendance/commit/e8393608b8626de7c698f109c4a151652cc61709))
+* Update attendance record parsing to align with TCP protocol format and correct offsets for user ID and timestamp ([21b6765](https://github.com/gianged/gianged-attendance/commit/21b6765a23f1d6085d4aa718daff9c4b21286d93))
+* Update attendance record timestamp handling to use local time instead of UTC ([1910c22](https://github.com/gianged/gianged-attendance/commit/1910c2201d1b26b766fe826a123e8ceab1b30800))
+* Update attendance size retrieval to handle ACK_OK response and extract total size correctly ([f8a5d00](https://github.com/gianged/gianged-attendance/commit/f8a5d00bfc4f5a33fd6d96b20a9f202e4c7ae4a7))
+* Update dependencies in Cargo.toml ([1e69f22](https://github.com/gianged/gianged-attendance/commit/1e69f22f7d23b3abb99b509fe694b342249848d9))
+* Update ZK TCP protocol constants to include CMD_ACK_DATA and adjust CMD_ACK_OK value ([a642fca](https://github.com/gianged/gianged-attendance/commit/a642fca3205fa0ab5151c46c8466a53fdee141c3))
+
 ## [1.1.5](https://github.com/gianged/gianged-attendance/compare/v1.1.4...v1.1.5) (2025-12-01)
 
 
