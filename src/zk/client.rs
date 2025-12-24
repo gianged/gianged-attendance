@@ -9,9 +9,8 @@ use tracing::{debug, info, warn};
 use super::attendance::{AttendanceRecord, parse_attendance};
 use super::error::{Result, ZkError};
 use super::protocol::{
-    CHUNK_SIZE, CMD_ACK_DATA, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT,
-    CMD_FREE_DATA, CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG,
-    build_packet,
+    CHUNK_SIZE, CMD_ACK_DATA, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA,
+    CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
 };
 
 /// TCP client for ZKTeco devices.
@@ -63,8 +62,8 @@ impl ZkTcpClient {
     /// Get all attendance records from device.
     ///
     /// Reads the complete ATTLOG table from device flash storage.
-    /// Uses chunk-based reading, continuing until a chunk smaller than CHUNK_SIZE
-    /// is received (indicating end of data).
+    /// First gets total size from DATA_WRRQ response, then reads chunks
+    /// with exact sizes to avoid requesting beyond available data.
     pub fn get_attendance(&mut self) -> Result<Vec<AttendanceRecord>> {
         info!("Fetching attendance records from device");
 
@@ -72,21 +71,45 @@ impl ZkTcpClient {
         self.send_command(CMD_GET_FREE_SIZES, &[])?;
         self.send_command(CMD_GET_FREE_SIZES, &[])?;
 
-        // Prepare ATTLOG read
-        self.send_command(CMD_DATA_WRRQ, &TABLE_ATTLOG)?;
+        // Send DATA_WRRQ and get total size from response
+        let wrrq_response = self.send_command(CMD_DATA_WRRQ, &TABLE_ATTLOG)?;
+
+        // Skip ACK_OK responses to get to DATA response with total size
+        let mut size_response = wrrq_response;
+        while size_response.cmd == CMD_ACK_OK {
+            debug!("Skipping ACK_OK, waiting for DATA with size info");
+            size_response = self.read_response()?;
+        }
+
+        // DATA response contains total size in first 4 bytes
+        if size_response.cmd != CMD_DATA || size_response.data.len() < 4 {
+            return Err(ZkError::InvalidResponse(format!(
+                "Expected CMD_DATA ({CMD_DATA}) with size info, got cmd={} data_len={}",
+                size_response.cmd,
+                size_response.data.len()
+            )));
+        }
+
+        let total_size = u32::from_le_bytes([
+            size_response.data[0],
+            size_response.data[1],
+            size_response.data[2],
+            size_response.data[3],
+        ]);
+
+        info!("Total attendance data size: {total_size} bytes");
 
         let mut all_data = Vec::new();
         let mut offset: u32 = 0;
 
-        loop {
+        while offset < total_size {
+            // Request exactly what's remaining, up to CHUNK_SIZE
+            let request_size = std::cmp::min(CHUNK_SIZE, total_size - offset);
+
             let mut chunk_req = [0u8; 8];
             chunk_req[0..4].copy_from_slice(&offset.to_le_bytes());
-            chunk_req[4..8].copy_from_slice(&CHUNK_SIZE.to_le_bytes());
+            chunk_req[4..8].copy_from_slice(&request_size.to_le_bytes());
 
-            // Send chunk request - device may respond with:
-            // 1. Delayed ACK (2000) from previous command, then ACK_DATA (1500), then DATA (1501)
-            // 2. ACK_DATA (1500) then DATA (1501)
-            // 3. DATA (1501) directly
             let mut response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
 
             // Skip delayed ACK_OK (2000) responses from previous commands
@@ -116,16 +139,10 @@ impl ZkTcpClient {
             };
 
             let chunk_len = chunk_data.len() as u32;
-            debug!("Read chunk: offset={offset}, received={chunk_len} bytes");
+            debug!("Read chunk: offset={offset}, requested={request_size}, received={chunk_len} bytes");
 
             all_data.extend_from_slice(&chunk_data);
             offset += chunk_len;
-
-            // End of data: received less than CHUNK_SIZE
-            if chunk_len < CHUNK_SIZE {
-                debug!("Received final chunk ({chunk_len} < {CHUNK_SIZE}), end of data");
-                break;
-            }
         }
 
         // Free buffer
