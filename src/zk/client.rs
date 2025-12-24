@@ -9,8 +9,8 @@ use tracing::{debug, info, warn};
 use super::attendance::{AttendanceRecord, parse_attendance};
 use super::error::{Result, ZkError};
 use super::protocol::{
-    CHUNK_SIZE, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA, CMD_GET_FREE_SIZES,
-    CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
+    CHUNK_SIZE, CMD_ACK_OK, CMD_CONNECT, CMD_DATA, CMD_DATA_WRRQ, CMD_EXIT, CMD_FREE_DATA,
+    CMD_GET_FREE_SIZES, CMD_READ_CHUNK, HEADER, Response, TABLE_ATTLOG, build_packet,
 };
 
 /// TCP client for ZKTeco devices.
@@ -118,26 +118,38 @@ impl ZkTcpClient {
             chunk_req[0..4].copy_from_slice(&offset.to_le_bytes());
             chunk_req[4..8].copy_from_slice(&chunk_size.to_le_bytes());
 
-            // Send chunk request - device responds with ACK then DATA
-            let _ack = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
+            // Send chunk request - device may respond with:
+            // 1. ACK (1500) then DATA (1501)
+            // 2. DATA (1501) directly
+            let first_response = self.send_command(CMD_READ_CHUNK, &chunk_req)?;
 
-            // Read the actual DATA packet
-            let data_response = self.read_response()?;
-            if data_response.cmd != CMD_DATA {
+            let chunk_data = if first_response.cmd == CMD_DATA {
+                // Got DATA directly
+                first_response.data
+            } else if first_response.cmd == CMD_ACK_OK {
+                // Got ACK first, read DATA next
+                let data_response = self.read_response()?;
+                if data_response.cmd != CMD_DATA {
+                    return Err(ZkError::InvalidResponse(format!(
+                        "Expected CMD_DATA ({}) after ACK, got {}",
+                        CMD_DATA, data_response.cmd
+                    )));
+                }
+                data_response.data
+            } else {
                 return Err(ZkError::InvalidResponse(format!(
-                    "Expected CMD_DATA ({}), got {}",
-                    CMD_DATA, data_response.cmd
+                    "Expected CMD_DATA ({}) or CMD_ACK_OK ({}), got {}",
+                    CMD_DATA, CMD_ACK_OK, first_response.cmd
                 )));
-            }
-
-            all_data.extend_from_slice(&data_response.data);
+            };
 
             debug!(
                 "Read chunk: offset={offset}, size={}, received={}",
                 chunk_size,
-                data_response.data.len()
+                chunk_data.len()
             );
 
+            all_data.extend_from_slice(&chunk_data);
             offset += chunk_size;
         }
 
