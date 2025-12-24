@@ -26,7 +26,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "..\target\release\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\config.example.toml"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\database.sql"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\database\script.sql"; DestDir: "{app}"; DestName: "database.sql"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
