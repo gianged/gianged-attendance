@@ -2,8 +2,11 @@
 
 use chrono::{DateTime, TimeZone, Utc};
 
-/// Size of each attendance record in bytes.
+/// Size of each attendance record in bytes (TCP protocol format).
 pub const RECORD_SIZE: usize = 40;
+
+/// Size of data prefix before records start.
+const DATA_PREFIX_SIZE: usize = 4;
 
 /// Parsed attendance record from device.
 #[derive(Debug, Clone)]
@@ -34,28 +37,29 @@ fn decode_zk_timestamp(encoded: u32) -> (u16, u8, u8, u8, u8, u8) {
     (year, month, day, hour, minute, second)
 }
 
-/// Parse attendance data from device.
+/// Parse attendance data from device (TCP protocol format).
+///
+/// Data layout:
+/// - Bytes 0-3: Data prefix (size/header info)
+/// - Bytes 4+: Records (40 bytes each)
 ///
 /// Record layout (40 bytes):
-/// - Bytes 0-11: Reserved
-/// - Bytes 12-15: Timestamp (u32 LE, packed ZK format)
-/// - Bytes 16-23: Reserved
-/// - Bytes 24-26: Unknown
-/// - Bytes 27-34: User ID (ASCII string, null-padded)
-/// - Bytes 35-39: Reserved
-///
-/// First record is skipped as it appears to be a header.
+/// - Bytes 0-1: Verify type (u16 LE)
+/// - Bytes 2-11: User ID (ASCII string, null-terminated)
+/// - Bytes 12-26: Reserved
+/// - Bytes 27-30: Timestamp (u32 LE, packed ZK format)
+/// - Bytes 31-39: Reserved
 pub fn parse_attendance(data: &[u8]) -> Vec<AttendanceRecord> {
-    if data.len() < RECORD_SIZE {
+    if data.len() < DATA_PREFIX_SIZE + RECORD_SIZE {
         return Vec::new();
     }
 
-    // Skip first record (header)
-    data[RECORD_SIZE..]
+    // Skip 4-byte data prefix, then parse records
+    data[DATA_PREFIX_SIZE..]
         .chunks_exact(RECORD_SIZE)
         .filter_map(|chunk| {
-            // Timestamp at offset 12-15
-            let encoded_ts = u32::from_le_bytes([chunk[12], chunk[13], chunk[14], chunk[15]]);
+            // Timestamp at offset 27-30
+            let encoded_ts = u32::from_le_bytes([chunk[27], chunk[28], chunk[29], chunk[30]]);
 
             if encoded_ts == 0 {
                 return None;
@@ -63,9 +67,9 @@ pub fn parse_attendance(data: &[u8]) -> Vec<AttendanceRecord> {
 
             let (year, month, day, hour, minute, second) = decode_zk_timestamp(encoded_ts);
 
-            // User ID as ASCII at offset 27-34
-            let uid_bytes = &chunk[27..35];
-            let uid_end = uid_bytes.iter().position(|&b| b == 0).unwrap_or(8);
+            // User ID as ASCII at offset 2 (null-terminated)
+            let uid_bytes = &chunk[2..12];
+            let uid_end = uid_bytes.iter().position(|&b| b == 0).unwrap_or(10);
             let user_id: u32 = std::str::from_utf8(&uid_bytes[..uid_end]).ok()?.parse().ok()?;
 
             // Convert to DateTime<Utc>
@@ -91,6 +95,7 @@ pub fn parse_attendance(data: &[u8]) -> Vec<AttendanceRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Datelike;
 
     #[test]
     fn test_decode_zk_timestamp() {
@@ -113,24 +118,28 @@ mod tests {
 
     #[test]
     fn test_parse_single_record() {
-        // Create a 80-byte buffer (header + 1 record)
-        let mut data = vec![0u8; 80];
+        // Create buffer: 4-byte prefix + 1 record (40 bytes) = 44 bytes
+        let mut data = vec![0u8; 44];
 
-        // Second record (index 40..80)
-        // Timestamp at offset 12-15: encode 2024-06-15 08:30:00
-        // Simplified: just put a non-zero value
-        data[52] = 0x01; // Non-zero timestamp
-        data[53] = 0x02;
-        data[54] = 0x03;
-        data[55] = 0x04;
+        // Record starts at offset 4 (after prefix)
+        // User ID "123" at offset 2 within record (bytes 6-8 in buffer)
+        data[6] = b'1';
+        data[7] = b'2';
+        data[8] = b'3';
 
-        // User ID "123" at offset 27-34 (relative to record start at 40)
-        data[67] = b'1';
-        data[68] = b'2';
-        data[69] = b'3';
+        // Timestamp at offset 27 within record (bytes 31-34 in buffer)
+        // Using a known timestamp: 0x3189c93c = 2025-11-10 08:52:12
+        let ts: u32 = 0x3189c93c;
+        data[31] = (ts & 0xff) as u8;
+        data[32] = ((ts >> 8) & 0xff) as u8;
+        data[33] = ((ts >> 16) & 0xff) as u8;
+        data[34] = ((ts >> 24) & 0xff) as u8;
 
         let records = parse_attendance(&data);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].user_id, 123);
+        assert_eq!(records[0].timestamp.year(), 2025);
+        assert_eq!(records[0].timestamp.month(), 11);
+        assert_eq!(records[0].timestamp.day(), 10);
     }
 }
