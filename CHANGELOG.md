@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/gianged/gianged-attendance/compare/v1.2.1...v1.3.0) (2025-12-25)
+
+
+### Features
+
+* add database and UI module files with initial structure ([1f777ab](https://github.com/gianged/gianged-attendance/commit/1f777ab4bb25668ee3ecec31ac8000cffe8692ee))
+
 ## [1.2.1](https://github.com/gianged/gianged-attendance/compare/v1.2.0...v1.2.1) (2025-12-24)
 
 
