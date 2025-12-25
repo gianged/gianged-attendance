@@ -14,10 +14,7 @@ fn parse_flexible_date(input: &str) -> Option<NaiveDate> {
     let input = input.trim();
 
     // Split by common separators: - / space .
-    let parts: Vec<&str> = input
-        .split(['-', '/', ' ', '.'])
-        .filter(|s| !s.is_empty())
-        .collect();
+    let parts: Vec<&str> = input.split(['-', '/', ' ', '.']).filter(|s| !s.is_empty()).collect();
 
     if parts.len() != 3 {
         return None;

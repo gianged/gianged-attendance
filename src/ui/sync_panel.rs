@@ -176,8 +176,7 @@ fn show_device_capacity(app: &mut App, ui: &mut Ui) {
                             } else {
                                 Color32::from_rgb(156, 163, 175) // Gray
                             };
-                            let (rect, _) =
-                                ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                            let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
                             ui.painter().circle_filled(rect.center(), 5.0, indicator_color);
 
                             let status_text = if app.config.sync.auto_clear_enabled {
@@ -198,11 +197,7 @@ fn show_device_capacity(app: &mut App, ui: &mut Ui) {
                             && capacity.records >= app.config.sync.auto_clear_threshold
                         {
                             ui.add_space(4.0);
-                            ui.label(
-                                RichText::new("Will clear on next sync")
-                                    .small()
-                                    .color(colors::WARNING),
-                            );
+                            ui.label(RichText::new("Will clear on next sync").small().color(colors::WARNING));
                         }
                     });
 
@@ -387,11 +382,7 @@ fn show_log_viewer(app: &mut App, ui: &mut Ui) {
                             };
 
                             // Format as single line with wrapped text
-                            let formatted = format!(
-                                "[{}] {}",
-                                entry.timestamp.format("%H:%M:%S"),
-                                entry.message
-                            );
+                            let formatted = format!("[{}] {}", entry.timestamp.format("%H:%M:%S"), entry.message);
                             ui.add(egui::Label::new(RichText::new(formatted).color(color)).wrap());
                         }
                     }

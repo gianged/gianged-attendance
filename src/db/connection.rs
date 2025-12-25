@@ -1,7 +1,7 @@
 //! Database connection pool and utility functions.
 
-use sea_orm::sqlx::postgres::PgPoolOptions;
 use sea_orm::sqlx::Executor;
+use sea_orm::sqlx::postgres::PgPoolOptions;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, PaginatorTrait, SqlxPostgresConnector, Statement};
 use std::time::Duration;
 
@@ -17,8 +17,7 @@ pub async fn connect(database_url: &str) -> Result<DatabaseConnection, DbErr> {
         .after_connect(|conn, _meta| {
             Box::pin(async move {
                 // Set search_path for each new connection
-                conn.execute("SET search_path TO app, system, public")
-                    .await?;
+                conn.execute("SET search_path TO app, system, public").await?;
                 Ok(())
             })
         })
