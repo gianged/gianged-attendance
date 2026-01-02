@@ -158,6 +158,8 @@ pub struct EmployeeForm {
     pub gender: Option<String>,
     pub birth_date: Option<NaiveDate>,
     pub start_date: Option<NaiveDate>,
+    /// Persistent input string for start date (allows partial typing without clearing)
+    pub start_date_input: String,
     pub end_date: Option<NaiveDate>,
     pub is_active: bool,
     pub is_open: bool,
@@ -181,6 +183,7 @@ impl EmployeeForm {
             gender: emp.gender.clone(),
             birth_date: emp.birth_date,
             start_date: Some(emp.start_date),
+            start_date_input: emp.start_date.format("%Y-%m-%d").to_string(),
             end_date: None,
             is_active: emp.is_active,
             is_open: true,
@@ -330,6 +333,8 @@ pub struct App {
     // Search/filter state
     pub employee_search: String,
     pub employee_dept_filter: Option<i32>,
+    /// Status filter: None = all, Some(true) = active only, Some(false) = inactive only
+    pub employee_status_filter: Option<bool>,
 
     // Dialogs
     pub show_delete_confirm: bool,
@@ -389,6 +394,7 @@ impl App {
             config_modified: false,
             employee_search: String::new(),
             employee_dept_filter: None,
+            employee_status_filter: None,
             show_delete_confirm: false,
             delete_target: None,
             error_message: None,

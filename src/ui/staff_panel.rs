@@ -6,10 +6,25 @@ use egui_phosphor::regular::{ARROWS_CLOCKWISE, FILE_XLS, PENCIL, PLUS, TRASH};
 
 use super::app::{App, DeleteTarget, EmployeeForm};
 use super::components::{
-    action_button, back_button, danger_action_button, panel_header, primary_button_with_icon, styled_button,
+    action_button, back_button, colors, danger_action_button, panel_header, primary_button_with_icon, styled_button,
     styled_button_with_icon,
 };
 use crate::models::employee::{CreateEmployee, UpdateEmployee};
+
+/// Parse date input flexibly, accepting multiple formats.
+fn parse_flexible_date(input: &str) -> Option<chrono::NaiveDate> {
+    let input = input.trim();
+    if input.is_empty() {
+        return None;
+    }
+
+    for fmt in &["%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"] {
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(input, fmt) {
+            return Some(date);
+        }
+    }
+    None
+}
 
 /// Show the staff panel.
 ///
@@ -26,9 +41,11 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
     // Toolbar row 1: Action buttons
     ui.horizontal(|ui| {
         if primary_button_with_icon(ui, PLUS, "Add Employee").clicked() {
+            let today = Local::now().date_naive();
             app.employee_form = EmployeeForm {
                 is_active: true,
-                start_date: Some(Local::now().date_naive()),
+                start_date: Some(today),
+                start_date_input: today.format("%Y-%m-%d").to_string(),
                 is_open: true,
                 ..Default::default()
             };
@@ -83,12 +100,36 @@ pub fn show(app: &mut App, ui: &mut Ui) -> bool {
                 }
             });
 
+        ui.add_space(20.0);
+
+        ui.label("Status:");
+        if ui
+            .selectable_label(app.employee_status_filter.is_none(), "All")
+            .clicked()
+        {
+            app.employee_status_filter = None;
+        }
+        if ui
+            .selectable_label(app.employee_status_filter == Some(true), "Active")
+            .clicked()
+        {
+            app.employee_status_filter = Some(true);
+        }
+        if ui
+            .selectable_label(app.employee_status_filter == Some(false), "Inactive")
+            .clicked()
+        {
+            app.employee_status_filter = Some(false);
+        }
+
         // Clear filters button
-        if !app.employee_search.is_empty() || app.employee_dept_filter.is_some() {
+        if !app.employee_search.is_empty() || app.employee_dept_filter.is_some() || app.employee_status_filter.is_some()
+        {
             ui.add_space(10.0);
             if styled_button(ui, "Clear").clicked() {
                 app.employee_search.clear();
                 app.employee_dept_filter = None;
+                app.employee_status_filter = None;
             }
         }
     });
@@ -120,7 +161,9 @@ fn show_table(app: &mut App, ui: &mut Ui) {
 
             let dept_match = app.employee_dept_filter.is_none() || e.department_id == app.employee_dept_filter;
 
-            search_match && dept_match
+            let status_match = app.employee_status_filter.is_none() || app.employee_status_filter == Some(e.is_active);
+
+            search_match && dept_match && status_match
         })
         .collect();
 
@@ -132,7 +175,8 @@ fn show_table(app: &mut App, ui: &mut Ui) {
 
     ui.add_space(10.0);
 
-    ScrollArea::vertical().show(ui, |ui| {
+    ScrollArea::vertical().id_salt("staff_scroll").show(ui, |ui| {
+        ui.add_space(4.0);
         egui::Grid::new("employees_grid")
             .num_columns(8)
             .striped(true)
@@ -169,9 +213,11 @@ fn show_table(app: &mut App, ui: &mut Ui) {
                     ui.label(if emp.is_active { "Yes" } else { "No" });
 
                     ui.horizontal(|ui| {
+                        ui.add_space(8.0);
                         if action_button(ui, PENCIL, "Edit").clicked() {
                             app.employee_form = EmployeeForm::edit(emp);
                         }
+                        ui.add_space(4.0);
                         if danger_action_button(ui, TRASH, "Delete").clicked() {
                             app.delete_target = Some(DeleteTarget::Employee(emp.id, emp.full_name.clone()));
                             app.show_delete_confirm = true;
@@ -195,99 +241,121 @@ fn show_form_dialog(app: &mut App, ctx: &egui::Context) {
         .collapsible(false)
         .resizable(false)
         .default_width(450.0)
+        .max_height(500.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.add_space(10.0);
 
-            egui::Grid::new("emp_form_grid")
-                .num_columns(2)
-                .spacing([20.0, 10.0])
-                .show(ui, |ui| {
-                    ui.label("Employee Code:");
-                    ui.add(egui::TextEdit::singleline(&mut app.employee_form.employee_code).desired_width(200.0));
-                    ui.end_row();
+            ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                egui::Grid::new("emp_form_grid")
+                    .num_columns(2)
+                    .spacing([20.0, 10.0])
+                    .show(ui, |ui| {
+                        ui.label("Employee Code:");
+                        ui.add(egui::TextEdit::singleline(&mut app.employee_form.employee_code).desired_width(200.0));
+                        ui.end_row();
 
-                    ui.label("Full Name:");
-                    ui.add(egui::TextEdit::singleline(&mut app.employee_form.full_name).desired_width(250.0));
-                    ui.end_row();
+                        ui.label("Full Name:");
+                        ui.add(egui::TextEdit::singleline(&mut app.employee_form.full_name).desired_width(250.0));
+                        ui.end_row();
 
-                    ui.label("Department:");
-                    egui::ComboBox::from_id_salt("emp_form_dept")
-                        .width(250.0)
-                        .selected_text(
-                            app.employee_form
-                                .department_id
-                                .and_then(|id| app.departments.iter().find(|d| d.id == id))
-                                .map(|d| d.name.as_str())
-                                .unwrap_or("None"),
-                        )
-                        .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(app.employee_form.department_id.is_none(), "None")
-                                .clicked()
-                            {
-                                app.employee_form.department_id = None;
-                            }
-                            for dept in &app.departments {
+                        ui.label("Department:");
+                        egui::ComboBox::from_id_salt("emp_form_dept")
+                            .width(250.0)
+                            .selected_text(
+                                app.employee_form
+                                    .department_id
+                                    .and_then(|id| app.departments.iter().find(|d| d.id == id))
+                                    .map(|d| d.name.as_str())
+                                    .unwrap_or("None"),
+                            )
+                            .show_ui(ui, |ui| {
                                 if ui
-                                    .selectable_label(app.employee_form.department_id == Some(dept.id), &dept.name)
+                                    .selectable_label(app.employee_form.department_id.is_none(), "None")
                                     .clicked()
                                 {
-                                    app.employee_form.department_id = Some(dept.id);
+                                    app.employee_form.department_id = None;
                                 }
-                            }
-                        });
-                    ui.end_row();
+                                for dept in &app.departments {
+                                    if ui
+                                        .selectable_label(app.employee_form.department_id == Some(dept.id), &dept.name)
+                                        .clicked()
+                                    {
+                                        app.employee_form.department_id = Some(dept.id);
+                                    }
+                                }
+                            });
+                        ui.end_row();
 
-                    ui.label("Scanner UID:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut app.employee_form.scanner_uid)
-                            .desired_width(100.0)
-                            .hint_text("Optional"),
-                    );
-                    ui.end_row();
+                        ui.label("Scanner UID:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut app.employee_form.scanner_uid)
+                                .desired_width(100.0)
+                                .hint_text("Optional"),
+                        );
+                        ui.end_row();
 
-                    ui.label("Gender:");
-                    egui::ComboBox::from_id_salt("emp_form_gender")
-                        .width(150.0)
-                        .selected_text(app.employee_form.gender.as_deref().unwrap_or("Select..."))
-                        .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(app.employee_form.gender.is_none(), "None")
-                                .clicked()
-                            {
-                                app.employee_form.gender = None;
-                            }
-                            for gender in &["male", "female", "other"] {
+                        ui.label("Gender:");
+                        egui::ComboBox::from_id_salt("emp_form_gender")
+                            .width(150.0)
+                            .selected_text(app.employee_form.gender.as_deref().unwrap_or("Select..."))
+                            .show_ui(ui, |ui| {
                                 if ui
-                                    .selectable_label(app.employee_form.gender.as_deref() == Some(*gender), *gender)
+                                    .selectable_label(app.employee_form.gender.is_none(), "None")
                                     .clicked()
                                 {
-                                    app.employee_form.gender = Some(gender.to_string());
+                                    app.employee_form.gender = None;
                                 }
+                                for gender in &["male", "female", "other"] {
+                                    if ui
+                                        .selectable_label(app.employee_form.gender.as_deref() == Some(*gender), *gender)
+                                        .clicked()
+                                    {
+                                        app.employee_form.gender = Some(gender.to_string());
+                                    }
+                                }
+                            });
+                        ui.end_row();
+
+                        ui.label("Start Date:");
+                        ui.vertical(|ui| {
+                            // Determine if current input is valid
+                            let is_valid =
+                                app.employee_form.start_date_input.is_empty() || app.employee_form.start_date.is_some();
+
+                            // Red text for invalid input
+                            let text_color = if is_valid {
+                                ui.visuals().text_color()
+                            } else {
+                                colors::ERROR
+                            };
+
+                            let response = ui.add(
+                                egui::TextEdit::singleline(&mut app.employee_form.start_date_input)
+                                    .desired_width(120.0)
+                                    .hint_text("YYYY-MM-DD")
+                                    .text_color(text_color),
+                            );
+
+                            // Parse on change - update parsed date if valid
+                            if response.changed() {
+                                app.employee_form.start_date = parse_flexible_date(&app.employee_form.start_date_input);
+                            }
+
+                            // Show format hint (red if invalid)
+                            if !is_valid {
+                                ui.colored_label(colors::ERROR, "Invalid date format");
+                            } else {
+                                ui.weak("Format: YYYY-MM-DD");
                             }
                         });
-                    ui.end_row();
+                        ui.end_row();
 
-                    ui.label("Start Date:");
-                    // Simple date input (YYYY-MM-DD)
-                    let mut date_str = app.employee_form.start_date.map(|d| d.to_string()).unwrap_or_default();
-                    if ui
-                        .add(
-                            egui::TextEdit::singleline(&mut date_str)
-                                .desired_width(120.0)
-                                .hint_text("YYYY-MM-DD"),
-                        )
-                        .changed()
-                    {
-                        app.employee_form.start_date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok();
-                    }
-                    ui.end_row();
-
-                    ui.label("Active:");
-                    ui.checkbox(&mut app.employee_form.is_active, "");
-                    ui.end_row();
-                });
+                        ui.label("Active:");
+                        ui.checkbox(&mut app.employee_form.is_active, "");
+                        ui.end_row();
+                    });
+            });
 
             ui.add_space(15.0);
             ui.separator();
