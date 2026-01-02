@@ -114,7 +114,7 @@ begin
       '[device]' + #13#10 +
       'url = "http://192.168.90.11"' + #13#10 +
       'username = "administrator"' + #13#10 +
-      'password = ""' + #13#10 +
+      'password = "12345"' + #13#10 +
       '' + #13#10 +
       '[database]' + #13#10 +
       'host = "' + DatabasePage.Values[0] + '"' + #13#10 +

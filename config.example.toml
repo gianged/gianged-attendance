@@ -5,7 +5,7 @@
 # ZKTeco fingerprint scanner connection
 url = "http://192.168.90.11"
 username = "administrator"
-password = "123456"
+password = "12345"
 
 [database]
 # PostgreSQL connection settings
