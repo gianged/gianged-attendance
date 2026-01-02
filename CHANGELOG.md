@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/gianged/gianged-attendance/compare/v1.3.0...v1.3.1) (2026-01-02)
+
+
+### Bug Fixes
+
+* enhance employee form with flexible date parsing and status filtering ([fc81fb0](https://github.com/gianged/gianged-attendance/commit/fc81fb0e2e9bdad366a042b18711f2d602849254))
+
 ## [1.3.0](https://github.com/gianged/gianged-attendance/compare/v1.2.1...v1.3.0) (2025-12-25)
 
 
