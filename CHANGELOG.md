@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/gianged/gianged-attendance/compare/v1.3.1...v1.3.2) (2026-01-02)
+
+
+### Bug Fixes
+
+* update version to 1.3.1 and fix password in configuration ([cfa98de](https://github.com/gianged/gianged-attendance/commit/cfa98dee14a5de9f70b2e6401ccd23a708a1cd96))
+
 ## [1.3.1](https://github.com/gianged/gianged-attendance/compare/v1.3.0...v1.3.1) (2026-01-02)
 
 
