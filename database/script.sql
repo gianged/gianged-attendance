@@ -266,7 +266,7 @@ SELECT
     e.full_name,
     e.department_id,
     d.name AS department_name,
-    DATE(al.check_time) AS work_date,
+    system.fn_date_from_timestamptz(al.check_time) AS work_date,
     MIN(al.check_time) AS first_check,
     MAX(al.check_time) AS last_check,
     COUNT(*) AS check_count,
@@ -274,7 +274,7 @@ SELECT
 FROM app.attendance_logs al
 JOIN app.employees e ON al.scanner_uid = e.scanner_uid
 LEFT JOIN app.departments d ON e.department_id = d.id
-GROUP BY e.id, e.employee_code, e.full_name, e.department_id, d.name, DATE(al.check_time);
+GROUP BY e.id, e.employee_code, e.full_name, e.department_id, d.name, system.fn_date_from_timestamptz(al.check_time);
 
 COMMENT ON VIEW app.v_daily_attendance IS 'Daily attendance summary per employee';
 

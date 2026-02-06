@@ -209,7 +209,7 @@ pub async fn get_attendance_details(
             verify_type_name,
             source
         FROM app.v_attendance_details
-        WHERE DATE(check_time) BETWEEN $1 AND $2
+        WHERE system.fn_date_from_timestamptz(check_time) BETWEEN $1 AND $2
         ORDER BY check_time DESC
         "#,
         [start_date.into(), end_date.into()],
@@ -241,7 +241,7 @@ pub async fn get_attendance_details_by_department(
             verify_type_name,
             source
         FROM app.v_attendance_details
-        WHERE department_id = $1 AND DATE(check_time) BETWEEN $2 AND $3
+        WHERE department_id = $1 AND system.fn_date_from_timestamptz(check_time) BETWEEN $2 AND $3
         ORDER BY check_time DESC
         "#,
         [department_id.into(), start_date.into(), end_date.into()],
@@ -446,7 +446,7 @@ pub async fn count_attendance_details(
             r#"
             SELECT COUNT(*) as count
             FROM app.v_attendance_details
-            WHERE department_id = $1 AND DATE(check_time) BETWEEN $2 AND $3
+            WHERE department_id = $1 AND system.fn_date_from_timestamptz(check_time) BETWEEN $2 AND $3
             "#,
             vec![dept_id.into(), start_date.into(), end_date.into()],
         ),
@@ -454,7 +454,7 @@ pub async fn count_attendance_details(
             r#"
             SELECT COUNT(*) as count
             FROM app.v_attendance_details
-            WHERE DATE(check_time) BETWEEN $1 AND $2
+            WHERE system.fn_date_from_timestamptz(check_time) BETWEEN $1 AND $2
             "#,
             vec![start_date.into(), end_date.into()],
         ),
@@ -494,7 +494,7 @@ pub async fn get_attendance_details_paginated(
                 verify_type_name,
                 source
             FROM app.v_attendance_details
-            WHERE department_id = $1 AND DATE(check_time) BETWEEN $2 AND $3
+            WHERE department_id = $1 AND system.fn_date_from_timestamptz(check_time) BETWEEN $2 AND $3
             ORDER BY check_time DESC
             LIMIT $4 OFFSET $5
             "#,
@@ -521,7 +521,7 @@ pub async fn get_attendance_details_paginated(
                 verify_type_name,
                 source
             FROM app.v_attendance_details
-            WHERE DATE(check_time) BETWEEN $1 AND $2
+            WHERE system.fn_date_from_timestamptz(check_time) BETWEEN $1 AND $2
             ORDER BY check_time DESC
             LIMIT $3 OFFSET $4
             "#,
